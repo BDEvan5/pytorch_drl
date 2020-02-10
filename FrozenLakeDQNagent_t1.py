@@ -15,6 +15,7 @@ class ProbabilityDistribution(tf.keras.Model):
     return tf.squeeze(tf.random.categorical(logits, 1), axis=-1)
 
 
+
 class Model(tf.keras.Model):
   def __init__(self, num_actions, num_states):
     super().__init__('mlp_policy')
@@ -32,15 +33,10 @@ class Model(tf.keras.Model):
     # Separate hidden layers from the same input tensor.
     hidden_logs = self.hidden1(x)
     hidden_vals = self.hidden2(x)
-    print(inputs)
-    print(x)
-    print(hidden_logs)
-    print(hidden_vals)
     return self.logits(hidden_logs), self.value(hidden_vals)
 
   def action_value(self, obs):
     # Executes `call()` under the hood.
-    # print(obs)
     logits, value = self.predict_on_batch(obs)
     action = self.dist.predict_on_batch(logits)
     # Another way to sample actions:
@@ -56,10 +52,10 @@ class A2CAgent:
     self.entropy_c = entropy_c
 
     self.model = model
-    # self.model.compile(
-    #   optimizer=ko.RMSprop(lr=lr),
+    self.model.compile(
+      optimizer=ko.RMSprop(lr=lr),
       # Define separate losses for policy logits and value estimate.
-    # loss=[self._logits_loss, self._value_loss])
+    loss=[self._logits_loss, self._value_loss])
     self.gamma = gamma
 
   def test(self, env, render=True):
@@ -156,18 +152,13 @@ model = Model(num_actions=env.action_space.n, num_states=env.action_space.n)
 
 obs = env.reset()
 # No feed_dict or tf.Session() needed at all!
-print(obs)
-print(obs[None, :])
 action, value = model.action_value(obs[None, :])
 # print(action, value) # [1] [-0.00145713]
 
 agent = A2CAgent(model)
-rewards_sum = agent.test(env)
-print("%d out of 200" % rewards_sum) # 18 out of 200
+# rewards_sum = agent.test(env)
+# print("%d out of 200" % rewards_sum) # 18 out of 200
 
-# rewards_history = agent.train(env)
-# print("Finished training, testing...")
-# print("%d out of 200" % agent.test(env))
-
-
-
+rewards_history = agent.train(env)
+print("Finished training, testing...")
+print("%d out of 200" % agent.test(env))
