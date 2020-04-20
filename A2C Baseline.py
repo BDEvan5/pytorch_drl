@@ -4,7 +4,7 @@ import tensorflow.keras.layers as kl
 import gym
 import tensorflow.keras.losses as kls
 import tensorflow.keras.optimizers as ko
-
+import logging
 
 
 
@@ -113,8 +113,7 @@ class A2CAgent:
         if dones[step]:
             ep_rewards.append(0.0)
             next_obs = env.reset()
-        #   logging.info("Episode: %03d, Reward: %03d" % (
-            # len(ep_rewards) - 1, ep_rewards[-2]))
+            print("Episode: %03d, Reward: %03d" % (len(ep_rewards) - 1, ep_rewards[-2]))
 
       _, next_value = self.model.action_value(next_obs[None, :])
 
@@ -122,11 +121,16 @@ class A2CAgent:
       # A trick to input actions and advantages through same API.
       acts_and_advs = np.concatenate([actions[:, None], advs[:, None]], axis=-1)
 
+      print("Actions")
+      print(actions.shape)
+
+      print(acts_and_advs)
+
       # Performs a full training step on the collected batch.
       # Note: no need to mess around with gradients, Keras API handles it.
       losses = self.model.train_on_batch(observations, [acts_and_advs, returns])
 
-    #   logging.debug("[%d/%d] Losses: %s" % (update + 1, updates, losses))
+      logging.debug("[%d/%d] Losses: %s" % (update + 1, updates, losses))
 
     return ep_rewards
 
