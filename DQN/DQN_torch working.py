@@ -24,7 +24,7 @@ EXPLORATION_DECAY = 0.995
 
 
 class SmartBufferDQN(object):
-    def __init__(self, max_size=MEMORY_SIZE, state_dim=4):     
+    def __init__(self, state_dim=4, max_size=MEMORY_SIZE):     
         self.max_size = max_size
         self.state_dim = state_dim
         self.ptr = 0
@@ -73,39 +73,12 @@ class SmartBufferDQN(object):
         return self.ptr
 
 
-
-class ReplayBuffer():
-    def __init__(self):
-        self.buffer = collections.deque(maxlen=MEMORY_SIZE)
-    
-    def put(self, transition):
-        self.buffer.append(transition)
-    
-    def sample(self, n):
-        mini_batch = random.sample(self.buffer, n)
-        s_lst, a_lst, r_lst, s_prime_lst, done_mask_lst = [], [], [], [], []
-        
-        for transition in mini_batch:
-            s, a, r, s_prime, done_mask = transition
-            s_lst.append(s)
-            a_lst.append([a])
-            r_lst.append([r])
-            s_prime_lst.append(s_prime)
-            done_mask_lst.append([done_mask])
-
-        return torch.tensor(s_lst, dtype=torch.float), torch.tensor(a_lst), \
-               torch.tensor(r_lst), torch.tensor(s_prime_lst, dtype=torch.float), \
-               torch.tensor(done_mask_lst)
-    
-    def size(self):
-        return len(self.buffer)
-
 class Qnet(nn.Module):
-    def __init__(self, obs_space, action_space):
+    def __init__(self, obs_space, action_space, h_size):
         super(Qnet, self).__init__()
-        self.fc1 = nn.Linear(4, 24)
-        self.fc2 = nn.Linear(24, 24)
-        self.fc3 = nn.Linear(24, 2)
+        self.fc1 = nn.Linear(obs_space, h_size)
+        self.fc2 = nn.Linear(h_size, h_size)
+        self.fc3 = nn.Linear(h_size, action_space)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -114,19 +87,33 @@ class Qnet(nn.Module):
         return x
       
 class DQN:
-    def __init__(self, obs_space, action_space):
-        self.model = Qnet(obs_space, action_space)
-        self.target = Qnet(obs_space, action_space)
-        self.memory = SmartBufferDQN()
-        # self.memory = ReplayBuffer()
+    def __init__(self, obs_space, action_space, name="Agent"):
+        self.obs_space = obs_space
         self.action_space = action_space
+        self.memory = SmartBufferDQN(obs_space)
+
+        self.name = name
+        self.model = None 
+        self.target = None
+        self.optimizer = None
+
         self.exploration_rate = EXPLORATION_MAX
-        self.optimizer = optim.Adam(self.model.parameters(), lr=LEARNING_RATE)
         self.update_steps = 0
+
+        torch.manual_seed(0)
+        torch.use_deterministic_algorithms(True)
+
+    def create_agent(self, h_size):
+        obs_space = self.obs_space
+        action_space = self.action_space
+
+        self.model = Qnet(obs_space, action_space, h_size)
+        self.target = Qnet(obs_space, action_space, h_size)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=LEARNING_RATE)
 
     def sample_action(self, obs):
         if random.random() < self.exploration_rate:
-            return random.randint(0,1)
+            return random.randint(0, self.action_space-1)
         else: 
             return self.greedy_action(obs)
 
@@ -134,7 +121,6 @@ class DQN:
         obs_t = torch.from_numpy(obs).float()
         out = self.model.forward(obs_t)
         return out.argmax().item()
-
 
     def experience_replay(self):
         n_train = 1
@@ -165,6 +151,55 @@ class DQN:
             self.exploration_rate *= EXPLORATION_DECAY 
             self.exploration_rate = max(EXPLORATION_MIN, self.exploration_rate)
 
+    def save(self, directory="./saves"):
+        filename = self.name
+
+        torch.save(self.model, '%s/%s_model.pth' % (directory, filename))
+        torch.save(self.target, '%s/%s_target.pth' % (directory, filename))
+
+    def load(self, directory="./saves"):
+        filename = self.name
+
+        self.model = torch.load('%s/%s_model.pth' % (directory, filename))
+        self.target = torch.load('%s/%s_target.pth' % (directory, filename))
+
+        print(f"Agent Loaded: {filename}")
+
+
+class DQN_test:
+    def __init__(self, obs_space, action_space, name="Agent"):
+        self.obs_space = obs_space
+        self.action_space = action_space
+
+        self.name = name
+        self.model = None 
+
+        self.update_steps = 0
+
+        torch.manual_seed(0)
+        torch.use_deterministic_algorithms(True)
+
+        self.load()
+
+    def act(self, obs):
+        return self.greedy_action(obs)
+
+    def greedy_action(self, obs):
+        obs_t = torch.from_numpy(obs).float()
+        out = self.model.forward(obs_t)
+        return out.argmax().item()
+
+    def load(self, directory="./saves"):
+        filename = self.name
+
+        self.model = torch.load('%s/%s_model.pth' % (directory, filename))
+        self.target = torch.load('%s/%s_target.pth' % (directory, filename))
+
+        print(f"Agent Loaded: {filename}")
+
+
+
+
 def observe(env, memory, n_itterations=10000):
     s = env.reset()
     done = False
@@ -183,7 +218,8 @@ def observe(env, memory, n_itterations=10000):
 
 def test_cartpole():
     env = gym.make('CartPole-v1')
-    dqn = DQN(env.observation_space.shape[0], env.action_space.shape)
+    dqn = DQN(env.observation_space.shape[0], env.action_space.n, "AgentCartpole")
+    dqn.create_agent(100)
 
     print_n = 20
 
@@ -200,13 +236,32 @@ def test_cartpole():
             state = s_prime
             score += r
             dqn.experience_replay()
+
+        dqn.save()
             
         rewards.append(score)
         if n % print_n == 1:
             print(f"Run: {n} --> Score: {score} --> Mean: {np.mean(rewards[-20:])} --> exp: {dqn.exploration_rate}")
 
+def test_():
+    env = gym.make('CartPole-v1')
+    dqn = DQN_test(env.observation_space.shape[0], env.action_space.n, "AgentCartpole")
+
+
+    rewards = []
+    for n in range(5):
+        score, done, state = 0, False, env.reset()
+        while not done:
+            a = dqn.act(state)
+            state, r, done, _ = env.step(a)
+            score += r
+
+        rewards.append(score)
+        # if n % print_n == 1:
+        print(f"Run: {n} --> Score: {score} --> Mean: {np.mean(rewards[-20:])}")
 
 
 if __name__ == '__main__':
-    test_cartpole()
+    # test_cartpole()
+    test_()
 
