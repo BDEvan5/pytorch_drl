@@ -46,11 +46,10 @@ class PPO(nn.Module):
         self.network = Network(self.obs_space, self.action_space, h_size)
         self.optimizer = optim.Adam(self.network.parameters(), lr=learning_rate)
       
-    def put_data(self, transition):
-
-        self.data.append(transition)
         
-    def put_data(self, transition):
+    def put_action_data(self, s, a, s_prime, r, done):
+        prob = self.network.pi(torch.from_numpy(s).float())
+        transition = (s, a, r, s_prime, prob[a].item(), done)
         
         self.data.append(transition)
         
@@ -78,7 +77,7 @@ class PPO(nn.Module):
         m = Categorical(prob)
         a = m.sample().item()
 
-        return a, prob[a].item()
+        return a
 
     def train(self):
         s, a, r, s_prime, done_mask, prob_a = self.make_batch()
@@ -107,7 +106,15 @@ class PPO(nn.Module):
             self.optimizer.zero_grad()
             loss.mean().backward()
             self.optimizer.step()
-        
+
+    def load(self, directory="./saves"):
+        filename = self.name
+
+        self.model = torch.load('%s/%s_model.pth' % (directory, filename))
+        self.target = torch.load('%s/%s_target.pth' % (directory, filename))
+
+        print(f"Agent Loaded: {filename}")
+
 def main():
     env = gym.make('CartPole-v1')
     model = PPO(4, 2)
@@ -120,10 +127,10 @@ def main():
         done = False
         while not done:
             for t in range(T_horizon):
-                a, prob = model.act(s)
+                a = model.act(s)
                 s_prime, r, done, info = env.step(a)
 
-                model.put_data((s, a, r/100.0, s_prime, prob, done))
+                model.put_action_data(s, a, s_prime, r/100.0, done)
                 s = s_prime
 
                 score += r
