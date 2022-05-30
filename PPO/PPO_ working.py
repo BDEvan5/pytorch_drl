@@ -12,7 +12,7 @@ gamma         = 0.98
 lmbda         = 0.95
 eps_clip      = 0.1
 K_epoch       = 3
-T_horizon     = 20
+T_horizon     = 100
 
 class Network(nn.Module):
     def __init__(self, obs_space, action_space, h_size):
@@ -32,13 +32,13 @@ class Network(nn.Module):
         v = self.fc_v(x)
         return v
 
-class PPO(nn.Module):
-    def __init__(self, obs_space, action_space):
-        super(PPO, self).__init__()
-        self.data = []
+class PPO:
+    def __init__(self, obs_space, action_space, name):
+        self.name = name
         self.action_space = action_space
         self.obs_space = obs_space
         
+        self.data = []
         self.network = None
         self.optimizer = None
 
@@ -46,6 +46,9 @@ class PPO(nn.Module):
         self.network = Network(self.obs_space, self.action_space, h_size)
         self.optimizer = optim.Adam(self.network.parameters(), lr=learning_rate)
       
+    def put_data(self, transition):
+
+        self.data.append(transition)
         
     def put_action_data(self, s, a, s_prime, r, done):
         prob = self.network.pi(torch.from_numpy(s).float())
@@ -80,6 +83,9 @@ class PPO(nn.Module):
         return a
 
     def train(self):
+        if len(self.data) < T_horizon:
+            return
+
         s, a, r, s_prime, done_mask, prob_a = self.make_batch()
 
         for i in range(K_epoch):
@@ -110,15 +116,22 @@ class PPO(nn.Module):
     def load(self, directory="./saves"):
         filename = self.name
 
-        self.model = torch.load('%s/%s_model.pth' % (directory, filename))
-        self.target = torch.load('%s/%s_target.pth' % (directory, filename))
+        self.network = torch.load('%s/%s_network.pth' % (directory, filename))
 
         print(f"Agent Loaded: {filename}")
 
+    def save(self, directory="./saves"):
+        filename = self.name
+
+        torch.save(self.network, '%s/%s_network.pth' % (directory, filename))
+
+        # print(f"Agent Saved: {filename}")
+
 def main():
     env = gym.make('CartPole-v1')
-    model = PPO(4, 2)
-    model.create_agent(256)
+    model = PPO(4, 2, "myfriend")
+    model.create_agent(100)
+    # model.create_agent(256)
     score = 0.0
     print_interval = 20
 
