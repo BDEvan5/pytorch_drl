@@ -262,6 +262,6 @@ def test_():
 
 
 if __name__ == '__main__':
-    # test_cartpole()
-    test_()
+    test_cartpole()
+    # test_()
 

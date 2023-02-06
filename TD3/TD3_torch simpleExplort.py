@@ -220,13 +220,15 @@ def test():
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0] 
     max_action = env.action_space.high[0]
+    print(state_dim, action_dim, max_action)
 
     agent = TD3(state_dim, action_dim, max_action)
     replay_buffer = ReplayBuffer()
 
     rewards = []
+    steps = 0
     observe(env, replay_buffer, 10000)
-    for episode in range(500):
+    for episode in range(50):
         score, done, obs, ep_steps = 0, False, env.reset(), 0
         while not done:
             action = agent.select_action(np.array(obs), noise=0.1)
@@ -238,11 +240,12 @@ def test():
             obs = new_obs
             score += reward
             ep_steps += 1
-
+            # env.render()
             agent.train(replay_buffer, 2) # number is of itterations
+            steps += 1
 
         rewards.append(score)
-        print(f"Ep: {episode} -> score: {score}")
+        print(f"Ep: {episode} -> score: {score} -> steps {steps}")
 
 if __name__ == "__main__":
     test()
