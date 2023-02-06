@@ -12,25 +12,26 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.distributions import Normal
 
-device = torch.device("cpu")
+torch.autograd.set_detect_anomaly(True)
 
-# class SoftQNetwork(nn.Module):
-#     def __init__(self, num_inputs, num_actions, hidden_size=[400,300], init_w=3e-3):
-#         super(SoftQNetwork, self).__init__()
+
+class SoftQNetwork(nn.Module):
+    def __init__(self, num_inputs, num_actions, hidden_size=[400,300], init_w=3e-3):
+        super(SoftQNetwork, self).__init__()
         
-#         self.linear1 = nn.Linear(num_inputs + num_actions, hidden_size[0])
-#         self.linear2 = nn.Linear(hidden_size[0], hidden_size[1])
-#         self.linear3 = nn.Linear(hidden_size[1], 1)
+        self.linear1 = nn.Linear(num_inputs + num_actions, hidden_size[0])
+        self.linear2 = nn.Linear(hidden_size[0], hidden_size[1])
+        self.linear3 = nn.Linear(hidden_size[1], 1)
         
-#         self.linear3.weight.data.uniform_(-init_w, init_w)
-#         self.linear3.bias.data.uniform_(-init_w, init_w)
+        self.linear3.weight.data.uniform_(-init_w, init_w)
+        self.linear3.bias.data.uniform_(-init_w, init_w)
         
-#     def forward(self, state, action):
-#         x = torch.cat([state, action], 1)
-#         x = F.relu(self.linear1(x))
-#         x = F.relu(self.linear2(x))
-#         x = self.linear3(x)
-#         return x
+    def forward(self, state, action):
+        x = torch.cat([state, action], 1)
+        x = F.relu(self.linear1(x))
+        x = F.relu(self.linear2(x))
+        x = self.linear3(x)
+        return x
     
     
     
@@ -80,7 +81,7 @@ class PolicyNetwork(nn.Module):
         return action, mean, log_std, log_prob, std
     
     def get_action(self, state, deterministic=False):
-        state = torch.FloatTensor(state).unsqueeze(0).to(device)
+        state = torch.FloatTensor(state).unsqueeze(0)
         action,_,_,_,_ =  self.forward(state, deterministic)
         act = action.cpu()[0][0]
         return act
@@ -106,8 +107,7 @@ class SoftQNetwork(nn.Module):
         return x
     
     
-
-# TODO: replace list with ndarray
+    
 class ReplayBuffer:
     def __init__(self, capacity):
         self.capacity = capacity
@@ -172,11 +172,11 @@ class SAC(object):
         # init networks
         
         # Soft Q
-        self.soft_q_net1 = SoftQNetwork(self.state_dim, self.action_dim, self.hidden_dim).to(device)
-        self.soft_q_net2 = SoftQNetwork(self.state_dim, self.action_dim, self.hidden_dim).to(device)
+        self.soft_q_net1 = SoftQNetwork(self.state_dim, self.action_dim, self.hidden_dim)
+        self.soft_q_net2 = SoftQNetwork(self.state_dim, self.action_dim, self.hidden_dim)
         
-        self.target_soft_q_net1 = SoftQNetwork(self.state_dim, self.action_dim, self.hidden_dim).to(device)
-        self.target_soft_q_net2 = SoftQNetwork(self.state_dim, self.action_dim, self.hidden_dim).to(device)
+        self.target_soft_q_net1 = SoftQNetwork(self.state_dim, self.action_dim, self.hidden_dim)
+        self.target_soft_q_net2 = SoftQNetwork(self.state_dim, self.action_dim, self.hidden_dim)
         
         for target_param, param in zip(self.target_soft_q_net1.parameters(), self.soft_q_net1.parameters()):
             target_param.data.copy_(param.data)
@@ -185,7 +185,7 @@ class SAC(object):
             target_param.data.copy_(param.data)
             
         # Policy
-        self.policy_net = PolicyNetwork(self.state_dim, self.action_dim, self.hidden_dim).to(device)
+        self.policy_net = PolicyNetwork(self.state_dim, self.action_dim, self.hidden_dim)
         
         # Optimizers/Loss
         self.soft_q_criterion = nn.MSELoss()
@@ -207,14 +207,10 @@ class SAC(object):
         self.batch_size = batch_size
         self.tau = tau
         
-    def get_action(self, state, deterministic=False, explore=False):
-        
-        state = torch.FloatTensor(state).unsqueeze(0).to(device)
-        if explore:
-            return self.env.action_space.sample()
-        else:
-            action  = self.policy_net.get_action(state, deterministic).detach()
-            return action.numpy()
+    def get_action(self, state, deterministic=False):
+        state = torch.FloatTensor(state).unsqueeze(0)
+        action  = self.policy_net.get_action(state, deterministic).detach()
+        return action.numpy()
            
     def update(self, iterations, batch_size = 100):
         
@@ -222,11 +218,11 @@ class SAC(object):
         
             state, action, reward, next_state, done = self.replay_buffer.sample(batch_size)
 
-            state      = torch.FloatTensor(state).to(device)
-            next_state = torch.FloatTensor(next_state).to(device)
-            action     = torch.FloatTensor(action).to(device)
-            reward     = torch.FloatTensor(reward).unsqueeze(1).to(device)
-            done       = torch.FloatTensor(np.float32(done)).unsqueeze(1).to(device)
+            state      = torch.FloatTensor(state)
+            next_state = torch.FloatTensor(next_state)
+            action     = torch.FloatTensor(action)
+            reward     = torch.FloatTensor(reward).unsqueeze(1)
+            done       = torch.FloatTensor(np.float32(done)).unsqueeze(1)
 
             new_actions, policy_mean, policy_log_std, log_pi, *_ = self.policy_net(state)
 
@@ -291,76 +287,69 @@ class SAC(object):
                     target_param.data * (1.0 - self.tau) + param.data * self.tau
                 )
      
+def observe(env, replay_buffer, observation_steps):
+    time_steps = 0
+    state = env.reset()
+    done = False
 
-def train(agent, steps_per_epoch=1000, epochs=100, start_steps=1000, max_ep_len=200):
-    
-    # start tracking time
-    start_time = time.time()
+    while time_steps < observation_steps:
+        action = env.action_space.sample()
+        next_state, reward, done, _ = env.step(action)
+
+        replay_buffer.push(state, action, reward, next_state, done)
+
+        state = next_state
+        time_steps += 1
+
+        if done:
+            obs = env.reset()
+            done = False
+
+        print("\rPopulating Buffer {}/{}.".format(time_steps, observation_steps), end="")
+        sys.stdout.flush()
+    print("")
+
+
+def train(total_steps=10000, max_ep_len=500): 
+    replay_buffer = ReplayBuffer(int(1e6))
+
+    env = NormalizedActions(gym.make("Pendulum-v1"))
+
+    agent = SAC(env, replay_buffer)
+
     total_rewards = []
     avg_reward = None
     
-    # set initial values
-    o, r, d, ep_reward, ep_len, ep_num = env.reset(), 0, False, 0, 0, 1
+    state, reward, done, ep_reward, ep_len, ep_num = env.reset(), 0, False, 0, 0, 1
     
-    # track total steps
-    total_steps = steps_per_epoch * epochs
-    
+    observe(env, replay_buffer, 10000)
     for t in range(1,total_steps):
+        action = agent.get_action(state)
         
-        explore = t < start_steps
-        a = agent.get_action(o, explore=explore)
-        
-        # Step the env
-        o2, r, d, _ = env.step(a)
-        ep_reward += r
+        next_state, reward, done, _ = env.step(action)
+        ep_reward += reward
         ep_len += 1
 
-        # Ignore the "done" signal if it comes from hitting the time
-        # horizon (that is, when it's an artificial terminal signal
-        # that isn't based on the agent's state)
-        d = False if ep_len == max_ep_len else d
+        done = False if ep_len == max_ep_len else done
 
-        # Store experience to replay buffer
-        replay_buffer.push(o, a, r, o2, d)
+        replay_buffer.push(state, action, reward, next_state, done)
 
-        # Super critical, easy to overlook step: make sure to update
-        # most recent observation!
-        o = o2
+        state = next_state
         
-        if d or (ep_len == max_ep_len):
-        
-            # carry out update for each step experienced (episode length)
-            if not explore:
-                agent.update(ep_len)
+        if done or (ep_len == max_ep_len):
+            agent.update(ep_len)
             
-            # log progress
             total_rewards.append(ep_reward)
             avg_reward = np.mean(total_rewards[-100:])
             
             print("Steps:{} Episode:{} Reward:{} Avg Reward:{}".format(t, ep_num, ep_reward, avg_reward))
-#             logger.store(LossPi=outs[0], LossQ1=outs[1], LossQ2=outs[2],
-#                          LossV=outs[3], Q1Vals=outs[4], Q2Vals=outs[5],
-#                          VVals=outs[6], LogPi=outs[7])
 
-#             logger.store(EpRet=ep_ret, EpLen=ep_len)
             o, r, d, ep_reward, ep_len = env.reset(), 0, False, 0, 0
             ep_num += 1
 
-        # End of epoch wrap-up
-        if t > 0 and t % steps_per_epoch == 0:
-            epoch = t // steps_per_epoch
 
-            # TODO: Save Model
-
-            # TODO: Test
-
-            # TODO: Log Epoch Results
             
-            
-replay_buffer = ReplayBuffer(int(1e6))
 
-env = NormalizedActions(gym.make("Pendulum-v1"))
-
-agent = SAC(env, replay_buffer)
-
-train(agent)
+if __name__ == "__main__":
+    train()
+    

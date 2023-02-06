@@ -249,6 +249,7 @@ while frame_idx < max_frames:
         action = noise.get_action(action, step)
         next_state, reward, done, _ = env.step(action)
         
+        
         replay_buffer.push(state, action, reward, next_state, done)
         if len(replay_buffer) > batch_size:
             td3_update(step, batch_size)
