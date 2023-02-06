@@ -45,9 +45,12 @@ class ReplayBuffer():
 class MuNet(nn.Module):
     def __init__(self):
         super(MuNet, self).__init__()
-        self.fc1 = nn.Linear(3, 128)
-        self.fc2 = nn.Linear(128, 64)
-        self.fc_mu = nn.Linear(64, 1)
+        self.fc1 = nn.Linear(3, 400)
+        self.fc2 = nn.Linear(400, 300)
+        self.fc_mu = nn.Linear(300, 1)
+        # self.fc1 = nn.Linear(3, 128)
+        # self.fc2 = nn.Linear(128, 64)
+        # self.fc_mu = nn.Linear(64, 1)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -58,10 +61,14 @@ class MuNet(nn.Module):
 class QNet(nn.Module):
     def __init__(self):
         super(QNet, self).__init__()
-        self.fc_s = nn.Linear(3, 64)
-        self.fc_a = nn.Linear(1,64)
-        self.fc_q = nn.Linear(128, 32)
-        self.fc_out = nn.Linear(32,1)
+        self.fc_s = nn.Linear(3, 200)
+        self.fc_a = nn.Linear(1, 200)
+        self.fc_q = nn.Linear(400, 300)
+        self.fc_out = nn.Linear(300,1)
+        # self.fc_s = nn.Linear(3, 64)
+        # self.fc_a = nn.Linear(1,64)
+        # self.fc_q = nn.Linear(128, 32)
+        # self.fc_out = nn.Linear(32,1)
 
     def forward(self, x, a):
         h1 = F.relu(self.fc_s(x))
@@ -108,7 +115,7 @@ class DDPG:
         if self.memory.size() < 1000:
             return
         
-        for i in range(10):
+        for i in range(1):
             s,a,r,s_prime,done_mask  = self.memory.sample(batch_size)
             
             target = r + gamma * self.q_target(s_prime, self.mu_target(s_prime)) * done_mask
@@ -136,21 +143,27 @@ def main():
     score = 0.0
     print_interval = 20
     agent = DDPG(env.observation_space.shape[0], env.action_space.shape[0])
+    steps = 0
     for n_epi in range(10000):
         s = env.reset()
         done = False
         
+        ep_score = 0
         while not done:
             a = agent.act(s)
             s_prime, r, done, info = env.step([a])
+            steps += 1
             agent.memory.put((s,a,r/100.0,s_prime,done))
             score +=r
+            ep_score += r
             s = s_prime
                 
-        agent.train()
+            agent.train()
+        
+        print("Step: {}, Episode :{}, Score : {:.1f}".format(steps, n_epi, ep_score))
         
         if n_epi%print_interval==0 and n_epi!=0:
-            print("# of episode :{}, avg score : {:.1f}".format(n_epi, score/print_interval))
+            print("Step: {}, # of episode :{}, avg score : {:.1f}".format(steps, n_epi, score/print_interval))
             score = 0.0
 
     env.close()

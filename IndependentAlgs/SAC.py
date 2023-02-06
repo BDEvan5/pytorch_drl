@@ -212,7 +212,7 @@ class SAC(object):
         action  = self.policy_net.get_action(state, deterministic).detach()
         return action.numpy()
            
-    def update(self, iterations, batch_size = 100):
+    def train(self, iterations, batch_size = 100):
         
         for _ in range(0,iterations):
         
@@ -336,15 +336,15 @@ def train(total_steps=10000, max_ep_len=500):
 
         state = next_state
         
+        agent.train(2)
         if done or (ep_len == max_ep_len):
-            agent.update(ep_len)
             
             total_rewards.append(ep_reward)
             avg_reward = np.mean(total_rewards[-100:])
             
             print("Steps:{} Episode:{} Reward:{} Avg Reward:{}".format(t, ep_num, ep_reward, avg_reward))
 
-            o, r, d, ep_reward, ep_len = env.reset(), 0, False, 0, 0
+            state, reward, done, ep_reward, ep_len = env.reset(), 0, False, 0, 0
             ep_num += 1
 
 
