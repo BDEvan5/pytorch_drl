@@ -86,6 +86,13 @@ class A2C:
         self.entropy += dist.entropy().mean()
 
         return action.numpy(), log_prob, value
+    
+    def test_action(self, state):
+        state = torch.FloatTensor(state)
+        dist = self.actor.pi(state)
+        action = dist.sample()
+
+        return action.numpy()
         
     def train(self, next_state):
         next_state = torch.FloatTensor(next_state)
@@ -109,37 +116,26 @@ class A2C:
         self.entropy = 0 
         self.buffer.reset()
         
+  
+def test_env(env, agent):
+    state = env.reset()
+    done = False
+    total_reward = 0
+    while not done:
+        action = agent.test_action(state)
+        next_state, reward, done, _ = env.step(action)
+        state = next_state
+        total_reward += reward
+        
+    print(f"Total reward: {total_reward}")
+    
+    return total_reward
     
 def plot(frame_idx, rewards):
     plt.figure(1, figsize=(5,5))
     plt.title('frame %s. reward: %s' % (frame_idx, rewards[-1]))
     plt.plot(rewards)
     plt.pause(0.00001)
-    
-
-
-    
-# def test_env(vis=False):
-#     state = env.reset()
-#     if vis: env.render()
-#     done = False
-#     total_reward = 0
-#     while not done:
-#         state = torch.FloatTensor(state)
-#         dist = actor.pi(state)
-#         action = dist.sample().numpy()
-#         next_state, reward, done, _ = env.step(action)
-#         state = next_state
-#         if vis: env.render()
-#         total_reward += reward
-        
-#     print(f"Total reward: {total_reward}")
-    
-#     return total_reward
-
-
-
-
 
 
 def test_a2c():
@@ -172,8 +168,12 @@ def test_a2c():
             if done:
                 break
                 
-        print(f"Frame {frame_idx} --> {np.sum(agent.buffer.rewards)}")
-        agent.train(next_state)
+        # print(f"Frame {frame_idx} --> {np.sum(agent.buffer.rewards)}")
+            if frame_idx % 1000 == 0:
+                test_rewards.append(np.mean([test_env(env, agent) for _ in range(10)]))
+                env.reset()
+                plot(frame_idx, test_rewards)
+            agent.train(next_state)
 
     
 test_a2c()
