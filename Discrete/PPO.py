@@ -129,7 +129,7 @@ def make_data_batch(data):
 
 def main():
     env = gym.make('CartPole-v1')
-    model = PPO(4, 2, "myfriend")
+    model = PPO(4, 2, "ppo_cartpole")
     model.create_agent(100)
     score = 0.0
     print_interval = 20
