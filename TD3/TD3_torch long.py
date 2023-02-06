@@ -355,7 +355,7 @@ def train(agent, env, runner, replay_buffer):
         total_timesteps += 1
         timesteps_since_eval += 1
 
-ENV = "Pendulum-v0"
+ENV = "Pendulum-v1"
 SEED = 0
 OBSERVATION = 10000
 EXPLORATION = 5000000

@@ -440,7 +440,7 @@ def train(agent, test_env, runner, replay_buffer):
         total_timesteps += 1
         timesteps_since_eval += 1
 
-ENV = "Pendulum-v0"#"RoboschoolHalfCheetah-v1"
+ENV = "Pendulum-v1"#"RoboschoolHalfCheetah-v1"
 SEED = 0
 OBSERVATION = 10000
 EXPLORATION = 5000000

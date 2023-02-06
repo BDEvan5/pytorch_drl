@@ -119,7 +119,7 @@ def soft_update(net, net_target):
         target_var.assign(new_val)
 
 def main():
-    env = gym.make('Pendulum-v0')
+    env = gym.make('Pendulum-v1')
     memory = ReplayBuffer()
 
     n_acts = env.action_space.shape[0]

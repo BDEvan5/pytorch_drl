@@ -179,8 +179,8 @@ def td3_update(step,
         soft_update(value_net2, target_value_net2, soft_tau=soft_tau)
         soft_update(policy_net, target_policy_net, soft_tau=soft_tau)
 
-# env = gym.make('Pendulum-v0')
-env = NormalizedActions(gym.make('Pendulum-v0'))
+# env = gym.make('Pendulum-v1')
+env = NormalizedActions(gym.make('Pendulum-v1'))
 noise = GaussianExploration(env.action_space)
 
 state_dim  = env.observation_space.shape[0]

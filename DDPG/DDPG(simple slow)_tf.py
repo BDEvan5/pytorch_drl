@@ -183,7 +183,7 @@ def trainer(env, agent, max_episodes, max_steps, batch_size, action_noise):
 
     return episode_rewards
 
-env = gym.make("Pendulum-v0")
+env = gym.make("Pendulum-v1")
 
 max_episodes = 20
 max_steps = 500

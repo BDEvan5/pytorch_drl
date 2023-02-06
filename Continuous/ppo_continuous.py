@@ -13,7 +13,7 @@ device   = torch.device("cuda" if use_cuda else "cpu")
 from common.multiprocessing_env import SubprocVecEnv
 
 num_envs = 16
-env_name = "Pendulum-v0"
+env_name = "Pendulum-v1"
 
 def make_env():
     def _thunk():

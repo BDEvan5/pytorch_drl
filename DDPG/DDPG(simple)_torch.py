@@ -184,7 +184,7 @@ def test(env, agent):
 
 
 if __name__ == "__main__":
-    env = gym.make("Pendulum-v0")
+    env = gym.make("Pendulum-v1")
     
     agent = DDPGAgent()
     episode_rewards = test(env, agent)
