@@ -7,17 +7,19 @@ hidden_fc1_units = 400
 hidden_fc2_units = 300
 
 class PolicyNet(nn.Module):
-    def __init__(self, state_dim, act_dim):
+    def __init__(self, state_dim, act_dim, action_scale):
         super(PolicyNet, self).__init__()
         
         self.fc1 = nn.Linear(state_dim, hidden_fc1_units)
         self.fc2 = nn.Linear(hidden_fc1_units, hidden_fc2_units)
         self.fc_mu = nn.Linear(hidden_fc2_units, act_dim)
 
+        self.action_scale = action_scale
+
     def forward(self, x):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-        mu = torch.tanh(self.fc_mu(x)) 
+        mu = torch.tanh(self.fc_mu(x)) * self.action_scale
         return mu
 
 class CriticNet(nn.Module):

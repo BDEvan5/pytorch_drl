@@ -34,7 +34,8 @@ class DDPG:
 
     def act(self, state):
         action = self.mu(torch.from_numpy(state).float()) * self.action_scale
-        action = action.item() + self.ou_noise()[0]
+        action = action + self.ou_noise()
+        # action = action.item() + self.ou_noise()[0]
         
         return action
         

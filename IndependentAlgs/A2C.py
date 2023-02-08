@@ -66,6 +66,7 @@ class BufferA2C:
         self.values    = []
         self.rewards   = []
         self.masks     = []
+   
     
 class A2C:
     def __init__(self, num_inputs, num_outputs, hidden_size=100) -> None:
@@ -173,6 +174,7 @@ def test_a2c():
                 test_rewards.append(np.mean([test_env(env, agent) for _ in range(10)]))
                 env.reset()
                 plot(frame_idx, test_rewards)
+            
             agent.train(next_state)
 
     

@@ -1,5 +1,6 @@
 from Components.LearningAlgs.ddpg import DDPG
-from Components.TrainingLoops import ContinuousTrainingLoop
+from Components.LearningAlgs.td3 import TD3
+from Components.TrainingLoops import ContinuousTrainingLoop, observe
 import gym 
 
 
@@ -11,12 +12,20 @@ def test_ddpg():
     ContinuousTrainingLoop(agent, env)
     
     
+def test_td3():
+    env_name = 'Pendulum-v1'
+    env = gym.make(env_name)
+    agent = TD3(env.observation_space.shape[0], env.action_space.shape[0], 2)
+    
+    observe(env, agent.memory, 10000)
+    ContinuousTrainingLoop(agent, env)
     
     
     
     
     
 if __name__ == '__main__':
-    test_ddpg()
+    # test_ddpg()
+    test_td3()
         
         

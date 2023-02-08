@@ -17,16 +17,18 @@ class ReplayBuffer():
         s_lst, a_lst, r_lst, s_prime_lst, done_mask_lst = [], [], [], [], []
 
         for transition in mini_batch:
-            s, a, r, s_prime, done = transition
+            s, a, s_prime, r, done = transition
             s_lst.append(s)
-            a_lst.append([a])
+            a_lst.append(a)
             r_lst.append([r])
             s_prime_lst.append(s_prime)
             done_mask = 0.0 if done else 1.0 
             done_mask_lst.append([done_mask])
         
-        return torch.tensor(s_lst, dtype=torch.float), torch.tensor(a_lst, dtype=torch.float), \
-                torch.tensor(r_lst, dtype=torch.float), torch.tensor(s_prime_lst, dtype=torch.float), \
+        return torch.tensor(s_lst, dtype=torch.float), \
+                torch.tensor(a_lst, dtype=torch.float), \
+                torch.tensor(s_prime_lst, dtype=torch.float), \
+                torch.tensor(r_lst, dtype=torch.float), \
                 torch.tensor(done_mask_lst, dtype=torch.float)
     
     def size(self):
