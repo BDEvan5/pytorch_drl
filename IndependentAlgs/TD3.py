@@ -234,7 +234,7 @@ def test():
             action = agent.select_action(np.array(obs), noise=0.1)
 
             new_obs, reward, done, _ = env.step(action) 
-            done_bool = 0 if ep_steps + 1 == 200 else float(done)
+            done_bool = 0 if ep_steps + 1 == 500 else float(done)
         
             replay_buffer.add((obs, new_obs, action, reward, done_bool))          
             obs = new_obs

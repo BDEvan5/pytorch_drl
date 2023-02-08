@@ -20,8 +20,8 @@ class ReplayBuffer():
             s, a, s_prime, r, done = transition
             s_lst.append(s)
             a_lst.append(a)
-            r_lst.append([r])
             s_prime_lst.append(s_prime)
+            r_lst.append([r])
             done_mask = 0.0 if done else 1.0 
             done_mask_lst.append([done_mask])
         
