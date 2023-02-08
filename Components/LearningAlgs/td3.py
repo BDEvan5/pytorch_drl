@@ -3,14 +3,13 @@ import torch
 import torch.nn.functional as F
 
 from Components.Networks import PolicyNet, CriticNet
-from Components.ReplayBuffers import ReplayBuffer
+from Components.ReplayBuffers import ReplayBuffer, SmartBuffer
 
 # hyper parameters
 BATCH_SIZE = 100
 GAMMA = 0.99
 tau = 0.005
 NOISE = 0.2
-# NOISE_CLIP = 0.25
 NOISE_CLIP = 0.5
 EXPLORE_NOISE = 0.1
 POLICY_FREQUENCY = 2
@@ -35,13 +34,13 @@ class TD3(object):
 
         self.act_dim = action_dim
         
-        self.memory = ReplayBuffer()
+        # self.memory = ReplayBuffer()
+        self.memory = SmartBuffer(state_dim, action_dim)
 
     def act(self, state, noise=0.1):
         state = torch.FloatTensor(state.reshape(1, -1))
 
         action = self.actor(state).data.numpy().flatten()
-        # action *= self.action_scale
         
         if noise != 0: 
             action = (action + np.random.normal(0, noise, size=self.act_dim))
@@ -55,44 +54,37 @@ class TD3(object):
             state, action, next_state, reward, done = self.memory.sample(BATCH_SIZE)
     
             noise = torch.normal(torch.zeros(action.size()), POLICY_NOISE)
-
-            # noise_action = action.detach().clone()
-            # noise = noise_action.data.normal_(0, POLICY_NOISE)
             noise = noise.clamp(-NOISE_CLIP, NOISE_CLIP)
             next_action = (self.actor_target(next_state) + noise).clamp(-self.action_scale, self.action_scale)
 
-            # Compute the target Q value
             target_Q1 = self.critic_target_1(next_state, next_action)
             target_Q2 = self.critic_target_2(next_state, next_action)
             target_Q = torch.min(target_Q1, target_Q2)
             target_Q = reward + (done * GAMMA * target_Q).detach()
 
-            # Get current Q estimates
             current_Q1 = self.critic_1(state, action)
             current_Q2 = self.critic_2(state, action)
 
-            # Compute critic loss
             critic_loss = F.mse_loss(current_Q1, target_Q) + F.mse_loss(current_Q2, target_Q) 
 
-            # Optimize the critic
             self.critic_optimizer.zero_grad()
             critic_loss.backward()
             self.critic_optimizer.step()
 
-            # Delayed policy updates
             if it % POLICY_FREQUENCY == 0:
                 actor_loss = -self.critic_1(state, self.actor(state)).mean()
 
                 self.actor_optimizer.zero_grad()
                 actor_loss.backward()
                 self.actor_optimizer.step()
+                
+                
+                soft_update(self.critic_1, self.critic_target_1, tau)
+                soft_update(self.critic_2, self.critic_target_2, tau)
+                soft_update(self.actor, self.actor_target, tau)
 
-                # Update the frozen target models
-                for param, target_param in zip(self.critic_1.parameters(), self.critic_target_1.parameters()):
-                    target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
-                    
-                for param, target_param in zip(self.critic_2.parameters(), self.critic_target_2.parameters()):
-                    target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
 
-                for param, target_param in zip(self.actor.parameters(), self.actor_target.parameters()):
-                    target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
+        
+def soft_update(net, net_target, tau):
+    for param_target, param in zip(net_target.parameters(), net.parameters()):
+        param_target.data.copy_(param_target.data * (1.0 - tau) + param.data * tau)
