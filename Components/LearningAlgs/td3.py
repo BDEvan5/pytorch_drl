@@ -53,14 +53,12 @@ class TD3(object):
             return
         for it in range(iterations):
             state, action, next_state, reward, done = self.memory.sample(BATCH_SIZE)
-            # action = action / self.action_scale
+    
+            noise = torch.normal(torch.zeros(action.size()), POLICY_NOISE)
 
-            # Select action according to policy and add clipped noise 
-            noise_action = action.detach().clone()
-            noise = noise_action.data.normal_(0, POLICY_NOISE)
-            # noise = action.data.normal_(0, POLICY_NOISE) #/ self.action_scale
+            # noise_action = action.detach().clone()
+            # noise = noise_action.data.normal_(0, POLICY_NOISE)
             noise = noise.clamp(-NOISE_CLIP, NOISE_CLIP)
-            # next_action = (self.actor_target(next_state) + noise).clamp(-1, 1)
             next_action = (self.actor_target(next_state) + noise).clamp(-self.action_scale, self.action_scale)
 
             # Compute the target Q value
