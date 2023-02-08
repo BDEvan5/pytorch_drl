@@ -38,7 +38,7 @@ class ReplayBuffer():
 MEMORY_SIZE = 1000000
 
 class SmartBuffer(object):
-    def __init__(self, state_dim=14, action_dim=1):     
+    def __init__(self, state_dim, action_dim):     
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.ptr = 0

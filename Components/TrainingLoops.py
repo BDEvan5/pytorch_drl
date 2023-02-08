@@ -7,7 +7,7 @@ def ContinuousTrainingLoop(agent, env):
     score = 0.0
     print_interval = 20
     steps = 0
-    for n_epi in range(10000):
+    for n_epi in range(100):
         state = env.reset()
         done = False
         

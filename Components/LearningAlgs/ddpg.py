@@ -1,5 +1,5 @@
 from Components.Networks import PolicyNet, CriticNet
-from Components.ReplayBuffers import ReplayBuffer
+from Components.ReplayBuffers import ReplayBuffer, SmartBuffer
 from Components.Noises import OrnsteinUhlenbeckNoise
 from Components.utils import soft_update
 
@@ -20,22 +20,23 @@ class DDPG:
     def __init__(self, state_dim, action_dim, action_scale):
         self.action_scale = action_scale
         
-        self.memory = ReplayBuffer()
+        self.memory = SmartBuffer(state_dim, action_dim)
 
-        self.q, self.q_target = CriticNet(state_dim, action_dim), CriticNet(state_dim, action_dim)
-        self.q_target.load_state_dict(self.q.state_dict())
-        self.mu, self.mu_target = PolicyNet(state_dim, action_dim), PolicyNet(state_dim, action_dim)
-        self.mu_target.load_state_dict(self.mu.state_dict())
+        self.critic = CriticNet(state_dim, action_dim)
+        self.critic_target = CriticNet(state_dim, action_dim)
+        self.critic_target.load_state_dict(self.critic.state_dict())
+        
+        self.actor = PolicyNet(state_dim, action_dim, action_scale)
+        self.actor_target = PolicyNet(state_dim, action_dim, action_scale)
+        self.actor_target.load_state_dict(self.actor.state_dict())
 
-
-        self.mu_optimizer = optim.Adam(self.mu.parameters(), lr=lr_mu)
-        self.q_optimizer  = optim.Adam(self.q.parameters(), lr=lr_q)
+        self.mu_optimizer = optim.Adam(self.actor.parameters(), lr=lr_mu)
+        self.q_optimizer  = optim.Adam(self.critic.parameters(), lr=lr_q)
         self.ou_noise = OrnsteinUhlenbeckNoise(mu=np.zeros(1))
 
     def act(self, state):
-        action = self.mu(torch.from_numpy(state).float()) * self.action_scale
-        action = action + self.ou_noise()
-        # action = action.item() + self.ou_noise()[0]
+        action = self.actor(torch.from_numpy(state).float()) * self.action_scale
+        action = action.detach().numpy() + self.ou_noise()
         
         return action
         
@@ -45,20 +46,20 @@ class DDPG:
             return
         
         for i in range(1):
-            s,a,r,s_prime,done_mask  = self.memory.sample(batch_size)
+            s, a, s_prime, r, done_mask  = self.memory.sample(batch_size)
             
-            target = r + gamma * self.q_target(s_prime, self.mu_target(s_prime)) * done_mask
-            q_loss = F.smooth_l1_loss(self.q(s,a), target.detach())
+            target = r + gamma * self.critic_target(s_prime, self.actor_target(s_prime)) * done_mask
+            q_loss = F.smooth_l1_loss(self.critic(s,a), target.detach())
             self.q_optimizer.zero_grad()
             q_loss.backward()
             self.q_optimizer.step()
             
-            mu_loss = -self.q(s,self.mu(s)).mean() 
+            mu_loss = -self.critic(s,self.actor(s)).mean() 
             self.mu_optimizer.zero_grad()
             mu_loss.backward()
             self.mu_optimizer.step()
         
-            soft_update(self.q, self.q_target, tau)
-            soft_update(self.mu, self.mu_target, tau)
+            soft_update(self.critic, self.critic_target, tau)
+            soft_update(self.actor, self.actor_target, tau)
      
         

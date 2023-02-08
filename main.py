@@ -26,7 +26,7 @@ def test_td3():
     
     
 if __name__ == '__main__':
-    # test_ddpg()
-    test_td3()
+    test_ddpg()
+    # test_td3()
         
         

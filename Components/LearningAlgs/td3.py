@@ -37,7 +37,7 @@ class TD3(object):
         # self.memory = ReplayBuffer()
         self.memory = SmartBuffer(state_dim, action_dim)
 
-    def act(self, state, noise=0.1):
+    def act(self, state, noise=EXPLORE_NOISE):
         state = torch.FloatTensor(state.reshape(1, -1))
 
         action = self.actor(state).data.numpy().flatten()
