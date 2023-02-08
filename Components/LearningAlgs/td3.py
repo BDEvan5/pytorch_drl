@@ -56,7 +56,9 @@ class TD3(object):
             # action = action / self.action_scale
 
             # Select action according to policy and add clipped noise 
-            noise = action.data.normal_(0, POLICY_NOISE) #/ self.action_scale
+            noise_action = action.detach().clone()
+            noise = noise_action.data.normal_(0, POLICY_NOISE)
+            # noise = action.data.normal_(0, POLICY_NOISE) #/ self.action_scale
             noise = noise.clamp(-NOISE_CLIP, NOISE_CLIP)
             # next_action = (self.actor_target(next_state) + noise).clamp(-1, 1)
             next_action = (self.actor_target(next_state) + noise).clamp(-self.action_scale, self.action_scale)

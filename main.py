@@ -1,6 +1,6 @@
 from Components.LearningAlgs.ddpg import DDPG
-from Components.LearningAlgs.td3_2 import TD3
-# from Components.LearningAlgs.td3 import TD3
+# from Components.LearningAlgs.td3_2 import TD3
+from Components.LearningAlgs.td3 import TD3
 from Components.TrainingLoops import ContinuousTrainingLoop, observe
 import gym 
 

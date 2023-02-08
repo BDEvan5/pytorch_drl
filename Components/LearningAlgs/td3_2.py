@@ -91,40 +91,18 @@ class SmartBufferTD3(object):
             next_states[i] = self.next_states[j]
             rewards[i] = self.rewards[j]
             dones[i] = self.dones[j]
+            
+        # states = torch.FloatTensor(states)
+        # actions = torch.FloatTensor(actions)
+        # next_states = torch.FloatTensor(next_states)
+        # rewards = torch.FloatTensor(rewards)
+        # dones = torch.FloatTensor(1- dones)
 
         return states, actions, next_states, rewards, dones
 
     def size(self):
         return self.ptr
 
-
-
-# class ReplayBuffer(object):
-#     def __init__(self, max_size=1000000):     
-#         self.storage = []
-#         self.max_size = max_size
-#         self.ptr = 0
-
-#     def add(self, data):        
-#         if len(self.storage) == self.max_size:
-#             self.storage[int(self.ptr)] = data
-#             self.ptr = (self.ptr + 1) % self.max_size
-#         else:
-#             self.storage.append(data)
-
-#     def sample(self, batch_size):
-#         ind = np.random.randint(0, len(self.storage), size=batch_size)
-#         states, actions, next_states, rewards, dones = [], [], [], [], []
-
-#         for i in ind: 
-#             s, a, s_, r, d = self.storage[i]
-#             states.append(np.array(s, copy=False))
-#             actions.append(np.array(a, copy=False))
-#             next_states.append(np.array(s_, copy=False))
-#             rewards.append(np.array(r, copy=False))
-#             dones.append(np.array(d, copy=False))
-
-#         return np.array(states), np.array(actions), np.array(next_states), np.array(rewards).reshape(-1, 1), np.array(dones).reshape(-1, 1)
 
 class TD3(object):
     def __init__(self, state_dim, action_dim, max_action):
@@ -149,7 +127,7 @@ class TD3(object):
         self.memory = SmartBufferTD3(MEMORY_SIZE, state_dim, action_dim)
 
 
-    def select_action(self, state, noise=0.1):
+    def act(self, state, noise=0.1):
         state = torch.FloatTensor(state.reshape(1, -1))
 
         action = self.actor(state).data.numpy().flatten()
@@ -160,16 +138,17 @@ class TD3(object):
 
     def train(self, iterations):
         for it in range(iterations):
-            # Sample replay buffer 
             x, u, y, r, d = self.memory.sample(BATCH_SIZE)
-            # x, y, u, r, d = replay_buffer.sample(BATCH_SIZE)
+            # state, action, next_state, reward, done = self.memory.sample(BATCH_SIZE)
             state = torch.FloatTensor(x)
             action = torch.FloatTensor(u)
             next_state = torch.FloatTensor(y)
             done = torch.FloatTensor(1 - d)
             reward = torch.FloatTensor(r)
 
-            noise = torch.FloatTensor(u).data.normal_(0, POLICY_NOISE)
+            noise_action = action.detach().clone()
+            noise = noise_action.data.normal_(0, POLICY_NOISE)
+            # noise = torch.FloatTensor(u).data.normal_(0, POLICY_NOISE)
             noise = noise.clamp(-NOISE_CLIP, NOISE_CLIP)
             next_action = (self.actor_target(next_state) + noise).clamp(-self.max_action, self.max_action)
 
@@ -198,14 +177,6 @@ class TD3(object):
                 soft_update(self.critic_2, self.critic_target_2, tau)
                 soft_update(self.actor, self.actor_target, tau)
 
-                # for param, target_param in zip(self.critic_1.parameters(), self.critic_target_1.parameters()):
-                #     target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
-                    
-                # for param, target_param in zip(self.critic_2.parameters(), self.critic_target_2.parameters()):
-                #     target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
-
-                # for param, target_param in zip(self.actor.parameters(), self.actor_target.parameters()):
-                #     target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
 
         
 def soft_update(net, net_target, tau):
@@ -240,26 +211,29 @@ def test():
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0] 
     max_action = env.action_space.high[0]
-    print(state_dim, action_dim, max_action)
 
     agent = TD3(state_dim, action_dim, max_action)
+    
+    observe(env, agent.memory, 10000)
+    ContinuousTrainingLoop2(env, agent)
 
+def ContinuousTrainingLoop2(env, agent):
     rewards = []
     steps = 0
-    observe(env, agent.memory, 10000)
     for episode in range(50):
         score, done, obs, ep_steps = 0, False, env.reset(), 0
         while not done:
-            action = agent.select_action(np.array(obs), noise=0.1)
+            action = agent.act(obs, noise=0.1)
 
             new_obs, reward, done, _ = env.step(action) 
             done_bool = 0 if ep_steps + 1 == 500 else float(done)
         
-            agent.memory.add(obs, action, new_obs, reward, done_bool)        
+            agent.memory.add(obs, action, new_obs, reward, done_bool)  
+            agent.train(2) 
+                  
             obs = new_obs
             score += reward
             ep_steps += 1
-            agent.train(2) 
             steps += 1
 
         rewards.append(score)
