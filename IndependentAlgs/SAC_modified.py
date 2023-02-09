@@ -1,10 +1,8 @@
-import math
 import random
 import sys
 
 import gym
 import numpy as np
-import time 
 
 import torch
 import torch.nn as nn
@@ -15,23 +13,54 @@ from torch.distributions import Normal
 torch.autograd.set_detect_anomaly(True)
 
 
-class SoftQNetwork(nn.Module):
-    def __init__(self, num_inputs, num_actions, hidden_size=[400,300], init_w=3e-3):
-        super(SoftQNetwork, self).__init__()
+
+class PolicyNet(nn.Module):
+    def __init__(self, num_inputs, num_actions, hidden_size=[400,300], 
+                 init_w=3e-3, log_std_min=-20, log_std_max=2, epsilon=1e-6):
+        super(PolicyNetwork, self).__init__()
         
-        self.linear1 = nn.Linear(num_inputs + num_actions, hidden_size[0])
+        self.epsilon = epsilon
+        
+        self.log_std_min = log_std_min
+        self.log_std_max = log_std_max
+        
+        self.linear1 = nn.Linear(num_inputs, hidden_size[0])
         self.linear2 = nn.Linear(hidden_size[0], hidden_size[1])
-        self.linear3 = nn.Linear(hidden_size[1], 1)
         
-        self.linear3.weight.data.uniform_(-init_w, init_w)
-        self.linear3.bias.data.uniform_(-init_w, init_w)
+        self.mean_linear = nn.Linear(hidden_size[1], num_actions)
+        self.mean_linear.weight.data.uniform_(-init_w, init_w)
+        self.mean_linear.bias.data.uniform_(-init_w, init_w)
         
-    def forward(self, state, action):
-        x = torch.cat([state, action], 1)
-        x = F.relu(self.linear1(x))
+        self.log_std_linear = nn.Linear(hidden_size[1], num_actions)
+        self.log_std_linear.weight.data.uniform_(-init_w, init_w)
+        self.log_std_linear.bias.data.uniform_(-init_w, init_w)
+    
+    def forward(self, state, deterministic=False):
+        x = F.relu(self.linear1(state))
         x = F.relu(self.linear2(x))
-        x = self.linear3(x)
-        return x
+        
+        mean    = self.mean_linear(x)
+        
+        log_std = self.log_std_linear(x)
+
+    
+# def make_stochastic(mean, log_std):
+        log_std = torch.clamp(log_std, self.log_std_min, self.log_std_max)
+        
+        std = torch.exp(log_std)
+        
+        log_prob = None
+        
+        if deterministic:
+            action = torch.tanh(mean)
+        else:
+            # assumes actions have been normalized to (0,1)
+            normal = Normal(0, 1)
+            z = mean + std * normal.sample().requires_grad_()
+            action = torch.tanh(z)
+            log_prob = Normal(mean, std).log_prob(z) - torch.log(1 - action * action + self.epsilon)
+            
+        return action, mean, log_std, log_prob, std
     
     
     
@@ -164,13 +193,7 @@ class SAC(object):
         self.state_dim = env.observation_space.shape[0]
         self.action_dim = env.action_space.shape[0] 
         self.hidden_dim = hidden_dim
-        
-        # device
-        self.device = torch.device("cpu")
-        # self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
-        # init networks
-        
+
         # Soft Q
         self.soft_q_net1 = SoftQNetwork(self.state_dim, self.action_dim, self.hidden_dim)
         self.soft_q_net2 = SoftQNetwork(self.state_dim, self.action_dim, self.hidden_dim)
@@ -199,7 +222,7 @@ class SAC(object):
         
         if self.auto_alpha:
             self.target_entropy = -np.prod(env.action_space.shape).item()
-            self.log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
+            self.log_alpha = torch.zeros(1, requires_grad=True)
             self.alpha_optimizer = optim.Adam([self.log_alpha], lr=lr)
             
         self.replay_buffer = replay_buffer
@@ -310,7 +333,7 @@ def observe(env, replay_buffer, observation_steps):
     print("")
 
 
-def train(total_steps=10000, max_ep_len=200): 
+def train(total_steps=10000, max_ep_len=500): 
     replay_buffer = ReplayBuffer(int(1e6))
 
     env = NormalizedActions(gym.make("Pendulum-v1"))
@@ -342,7 +365,7 @@ def train(total_steps=10000, max_ep_len=200):
             total_rewards.append(ep_reward)
             avg_reward = np.mean(total_rewards[-100:])
             
-            print("Steps:{} Episode:{} Reward:{} Avg Reward:{}".format(t, ep_num, ep_reward, avg_reward))
+            print(f"Steps: {t} Episode: {ep_num} Reward: {ep_reward:.2f} Avg Reward: {avg_reward:.2f}")
 
             state, reward, done, ep_reward, ep_len = env.reset(), 0, False, 0, 0
             ep_num += 1
