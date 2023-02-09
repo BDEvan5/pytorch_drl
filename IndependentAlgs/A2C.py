@@ -9,16 +9,16 @@ from torch.distributions import Categorical
 import matplotlib.pyplot as plt
 
 #Hyper params:
-hidden_size = 256
+hidden_size = 400
 lr          = 3e-4
-num_steps   = 500
+num_steps   = 100
 
 
 class Actor(nn.Module):
-    def __init__(self, obs_space, action_space, h_size):
+    def __init__(self, obs_space, action_space):
         super(Actor, self).__init__()
-        self.fc1 = nn.Linear(obs_space, h_size)
-        self.fc_pi = nn.Linear(h_size, action_space)
+        self.fc1 = nn.Linear(obs_space, hidden_size)
+        self.fc_pi = nn.Linear(hidden_size, action_space)
 
     def pi(self, x, softmax_dim = 0):
         x = F.relu(self.fc1(x))
@@ -28,18 +28,19 @@ class Actor(nn.Module):
         
         return dist
     
+    
 class Critic(nn.Module):
-    def __init__(self, obs_space, h_size):
+    def __init__(self, obs_space):
         super(Critic, self).__init__()
-        self.fc1 = nn.Linear(obs_space, h_size)
-        self.fc_v  = nn.Linear(h_size,1)
+        self.fc1 = nn.Linear(obs_space, hidden_size)
+        self.fc_v  = nn.Linear(hidden_size, 1)
 
     def v(self, x):
         x = F.relu(self.fc1(x))
         v = self.fc_v(x)
         return v
     
-class BufferA2C:
+class BufferVPG:
     def __init__(self):
         self.log_probs = []
         self.values    = []
@@ -52,7 +53,7 @@ class BufferA2C:
         self.rewards.append(reward)
         self.masks.append(mask)
         
-    def compute_returns(self, next_value, gamma=0.99):
+    def compute_rewards_to_go(self, next_value, gamma=0.99):
         R = next_value
         returns = []
         for step in reversed(range(len(self.rewards))):
@@ -69,12 +70,11 @@ class BufferA2C:
    
     
 class A2C:
-    def __init__(self, num_inputs, num_outputs, hidden_size=100) -> None:
-        self.actor = Actor(num_inputs, num_outputs, hidden_size)
-        self.critic = Critic(num_inputs, hidden_size)
+    def __init__(self, num_inputs, num_outputs) -> None:
+        self.actor = Actor(num_inputs, num_outputs)
+        self.critic = Critic(num_inputs)
         self.optimizer = optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=lr)
-        self.entropy = 0
-        self.buffer = BufferA2C()
+        self.buffer = BufferVPG()
         
     def act(self, state):
         state = torch.FloatTensor(state)
@@ -84,53 +84,31 @@ class A2C:
         
         action = dist.sample()
         log_prob = dist.log_prob(action)
-        self.entropy += dist.entropy().mean()
 
         return action.numpy(), log_prob, value
-    
-    def test_action(self, state):
-        state = torch.FloatTensor(state)
-        dist = self.actor.pi(state)
-        action = dist.sample()
-
-        return action.numpy()
         
     def train(self, next_state):
         next_state = torch.FloatTensor(next_state)
         next_value = self.critic.v(next_state)
-        returns = self.buffer.compute_returns(next_value)
+        returns = self.buffer.compute_rewards_to_go(next_value)
 
         log_probs = torch.stack(self.buffer.log_probs)
         returns   = torch.cat(returns).detach()
         values    = torch.cat(self.buffer.values)
+        
         advantage = returns - values
 
         actor_loss  = -(log_probs * advantage.detach()).mean()
         critic_loss = advantage.pow(2).mean()
 
-        loss = actor_loss + 0.5 * critic_loss - 0.001 * self.entropy
+        loss = actor_loss + 0.5 * critic_loss 
 
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
         
-        self.entropy = 0 
         self.buffer.reset()
-        
-  
-def test_env(env, agent):
-    state = env.reset()
-    done = False
-    total_reward = 0
-    while not done:
-        action = agent.test_action(state)
-        next_state, reward, done, _ = env.step(action)
-        state = next_state
-        total_reward += reward
-        
-    print(f"Total reward: {total_reward}")
     
-    return total_reward
     
 def plot(frame_idx, rewards):
     plt.figure(1, figsize=(5,5))
@@ -138,44 +116,42 @@ def plot(frame_idx, rewards):
     plt.plot(rewards)
     plt.pause(0.00001)
 
-
 def test_a2c():
     env_name = "CartPole-v1"
     env = gym.make(env_name)
 
     num_inputs  = env.observation_space.shape[0]
     num_outputs = env.action_space.n
-    agent = A2C(num_inputs=num_inputs, num_outputs=num_outputs, hidden_size=hidden_size)
+    agent = A2C(num_inputs=num_inputs, num_outputs=num_outputs)
     
     max_frames   = 50000
     frame_idx    = 0
-    test_rewards = []
     state = env.reset()
-    frame_idx = 0
+    training_rewards = []
+    ep_reward = 0
 
     while frame_idx < max_frames:
-
-        state = env.reset()
         for _ in range(num_steps):
             action, log_prob, value = agent.act(state)
 
             next_state, reward, done, _ = env.step(action)
     
             agent.buffer.add(log_prob, value, reward, 1 - done)
+            ep_reward += reward
         
             state = next_state
             frame_idx += 1
         
             if done:
-                break
+                print(f"{frame_idx} -> Episode reward: ", ep_reward)
+                training_rewards.append(ep_reward)
+                ep_reward = 0
+                state = env.reset()
                 
-        # print(f"Frame {frame_idx} --> {np.sum(agent.buffer.rewards)}")
             if frame_idx % 1000 == 0:
-                test_rewards.append(np.mean([test_env(env, agent) for _ in range(10)]))
-                env.reset()
-                plot(frame_idx, test_rewards)
+                plot(frame_idx, training_rewards)
             
-            agent.train(next_state)
+        agent.train(next_state)
 
     
 test_a2c()

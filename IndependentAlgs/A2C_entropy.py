@@ -9,16 +9,16 @@ from torch.distributions import Categorical
 import matplotlib.pyplot as plt
 
 #Hyper params:
-hidden_size = 256
+hidden_size = 400
 lr          = 3e-4
-num_steps   = 500
+num_steps   = 100
 
 
 class Actor(nn.Module):
-    def __init__(self, obs_space, action_space, h_size):
+    def __init__(self, obs_space, action_space):
         super(Actor, self).__init__()
-        self.fc1 = nn.Linear(obs_space, h_size)
-        self.fc_pi = nn.Linear(h_size, action_space)
+        self.fc1 = nn.Linear(obs_space, hidden_size)
+        self.fc_pi = nn.Linear(hidden_size, action_space)
 
     def pi(self, x, softmax_dim = 0):
         x = F.relu(self.fc1(x))
@@ -28,11 +28,12 @@ class Actor(nn.Module):
         
         return dist
     
+    
 class Critic(nn.Module):
-    def __init__(self, obs_space, h_size):
+    def __init__(self, obs_space):
         super(Critic, self).__init__()
-        self.fc1 = nn.Linear(obs_space, h_size)
-        self.fc_v  = nn.Linear(h_size,1)
+        self.fc1 = nn.Linear(obs_space, hidden_size)
+        self.fc_v  = nn.Linear(hidden_size, 1)
 
     def v(self, x):
         x = F.relu(self.fc1(x))
@@ -68,10 +69,10 @@ class BufferVPG:
         self.masks     = []
    
     
-class VPG:
-    def __init__(self, num_inputs, num_outputs, hidden_size=100) -> None:
-        self.actor = Actor(num_inputs, num_outputs, hidden_size)
-        self.critic = Critic(num_inputs, hidden_size)
+class A2C:
+    def __init__(self, num_inputs, num_outputs) -> None:
+        self.actor = Actor(num_inputs, num_outputs)
+        self.critic = Critic(num_inputs)
         self.optimizer = optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=lr)
         self.entropy = 0
         self.buffer = BufferVPG()
@@ -84,13 +85,13 @@ class VPG:
         
         action = dist.sample()
         log_prob = dist.log_prob(action)
+        self.entropy += dist.entropy().mean()
 
         return action.numpy(), log_prob, value
         
     def train(self, next_state):
         next_state = torch.FloatTensor(next_state)
         next_value = self.critic.v(next_state)
-        #VPG uses the reward-to-go
         returns = self.buffer.compute_rewards_to_go(next_value)
 
         log_probs = torch.stack(self.buffer.log_probs)
@@ -102,13 +103,15 @@ class VPG:
         actor_loss  = -(log_probs * advantage.detach()).mean()
         critic_loss = advantage.pow(2).mean()
 
-        loss = actor_loss + 0.5 * critic_loss 
+        loss = actor_loss + 0.5 * critic_loss - 0.001 * self.entropy
 
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
         
+        self.entropy = 0
         self.buffer.reset()
+    
     
 def plot(frame_idx, rewards):
     plt.figure(1, figsize=(5,5))
@@ -116,14 +119,13 @@ def plot(frame_idx, rewards):
     plt.plot(rewards)
     plt.pause(0.00001)
 
-
 def test_a2c():
     env_name = "CartPole-v1"
     env = gym.make(env_name)
 
     num_inputs  = env.observation_space.shape[0]
     num_outputs = env.action_space.n
-    agent = VPG(num_inputs=num_inputs, num_outputs=num_outputs, hidden_size=hidden_size)
+    agent = A2C(num_inputs=num_inputs, num_outputs=num_outputs)
     
     max_frames   = 50000
     frame_idx    = 0
@@ -132,9 +134,6 @@ def test_a2c():
     ep_reward = 0
 
     while frame_idx < max_frames:
-
-        state = env.reset()
-
         for _ in range(num_steps):
             action, log_prob, value = agent.act(state)
 
@@ -150,7 +149,7 @@ def test_a2c():
                 print(f"{frame_idx} -> Episode reward: ", ep_reward)
                 training_rewards.append(ep_reward)
                 ep_reward = 0
-                break
+                state = env.reset()
                 
             if frame_idx % 1000 == 0:
                 plot(frame_idx, training_rewards)
