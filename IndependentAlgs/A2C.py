@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 #Hyper params:
 hidden_size = 400
 num_steps   = 100
+lr          = 3e-4
 
 
 class Actor(nn.Module):

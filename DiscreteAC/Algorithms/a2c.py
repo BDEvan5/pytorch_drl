@@ -5,6 +5,8 @@ from DiscreteAC.Networks import Actor, Critic
 from DiscreteAC.OnPolicyBuffer import OnPolicyBuffer
 
 lr          = 3e-4
+gamma=0.99
+
 
 class A2C:
     def __init__(self, state_dim, n_acts, num_steps) -> None:
@@ -21,8 +23,7 @@ class A2C:
 
         return action.numpy()
         
-            
-    def compute_rewards_to_go(self, next_value, gamma=0.99):
+    def compute_rewards_to_go(self, next_value):
         R = next_value
         returns = []
         for step in reversed(range(len(self.buffer.rewards))):
@@ -37,19 +38,12 @@ class A2C:
         returns = self.compute_rewards_to_go(next_value)
 
         states = torch.FloatTensor(self.buffer.states)
-        actions = torch.IntTensor(self.buffer.actions)
-        # actions = torch.cas
+        values    = self.critic.v(states)
         
+        actions = torch.IntTensor(self.buffer.actions)
         probs = self.actor.pi(states, softmax_dim=1)
         probs = probs.gather(1, actions.long())
-        log_probs = torch.log(probs)
-        # log_probs = torch.zeros_like(actions)
-        # for i in range(len(self.buffer.actions)):
-        #     dist = self.actor.pi(states[i])
-        #     log_probs[i] = dist.log_prob(actions[i])
-        # log_probs = dists.log_prob(actions)
-        # log_probs = log_probs[:, 0]
-        values    = self.critic.v(states)
+        log_probs = torch.log(probs)[:, 0]
 
         returns   = torch.cat(returns).detach()
         advantage = returns - values
