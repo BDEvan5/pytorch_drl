@@ -40,7 +40,7 @@ class Critic(nn.Module):
         v = self.fc_v(x)
         return v
     
-class BufferVPG:
+class BufferA2C:
     def __init__(self):
         self.log_probs = []
         self.values    = []
@@ -75,7 +75,7 @@ class A2C:
         self.critic = Critic(num_inputs)
         self.optimizer = optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=lr)
         self.entropy = 0
-        self.buffer = BufferVPG()
+        self.buffer = BufferA2C()
         
     def act(self, state):
         state = torch.FloatTensor(state)

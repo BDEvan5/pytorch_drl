@@ -25,6 +25,7 @@ class Actor(nn.Module):
         prob = F.softmax(x, dim=softmax_dim)
         return prob
     
+    
 class Critic(nn.Module):
     def __init__(self, obs_space, action_space, h_size):
         super(Critic, self).__init__()
@@ -35,6 +36,7 @@ class Critic(nn.Module):
         x = F.relu(self.fc1(x))
         v = self.fc_v(x)
         return v
+
 
 class PPO:
     def __init__(self, obs_space, action_space, name):
@@ -133,6 +135,7 @@ def main():
     model.create_agent(100)
     score = 0.0
     print_interval = 20
+    step = 0
 
     for n_epi in range(1000):
         s = env.reset()
@@ -146,13 +149,14 @@ def main():
                 s = s_prime
 
                 score += r
+                step += 1
                 if done:
                     break
 
             model.train()
 
         if n_epi%print_interval==0 and n_epi!=0:
-            print("# of episode :{}, avg score : {:.1f}".format(n_epi, score/print_interval))
+            print(f"Step: {step} -> # of episode :{n_epi}, avg score : {score/print_interval:.1f}")
             score = 0.0
 
     env.close()

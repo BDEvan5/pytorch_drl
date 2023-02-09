@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 
 #Hyper params:
 hidden_size = 400
-lr          = 3e-4
 num_steps   = 100
 
 
@@ -40,7 +39,7 @@ class Critic(nn.Module):
         v = self.fc_v(x)
         return v
     
-class BufferVPG:
+class BufferA2C:
     def __init__(self):
         self.log_probs = []
         self.values    = []
@@ -74,7 +73,7 @@ class A2C:
         self.actor = Actor(num_inputs, num_outputs)
         self.critic = Critic(num_inputs)
         self.optimizer = optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=lr)
-        self.buffer = BufferVPG()
+        self.buffer = BufferA2C()
         
     def act(self, state):
         state = torch.FloatTensor(state)
