@@ -1,7 +1,6 @@
 import gym 
 import matplotlib.pyplot as plt
 
-num_steps = 100
 max_frames = 50000
 
 def plot(frame_idx, rewards):
@@ -10,7 +9,7 @@ def plot(frame_idx, rewards):
     plt.plot(rewards)
     plt.pause(0.00001)
 
-def DiscreteTrainingLoop(agent, env):
+def DiscreteTrainingLoop(agent, env, num_steps):
     env_name = "CartPole-v1"
     env = gym.make(env_name)
 
@@ -21,11 +20,11 @@ def DiscreteTrainingLoop(agent, env):
 
     while frame_idx < max_frames:
         for _ in range(num_steps):
-            action, log_prob, value = agent.act(state)
+            action = agent.act(state)
 
             next_state, reward, done, _ = env.step(action)
     
-            agent.buffer.add(log_prob, value, reward, 1 - done)
+            agent.buffer.add(state, action, next_state, reward, done)
             ep_reward += reward
         
             state = next_state

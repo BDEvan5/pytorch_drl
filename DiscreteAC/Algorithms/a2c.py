@@ -7,32 +7,51 @@ from DiscreteAC.OnPolicyBuffer import OnPolicyBuffer
 lr          = 3e-4
 
 class A2C:
-    def __init__(self, num_inputs, num_outputs) -> None:
-        self.actor = Actor(num_inputs, num_outputs)
-        self.critic = Critic(num_inputs)
+    def __init__(self, state_dim, n_acts, num_steps) -> None:
+        self.actor = Actor(state_dim, n_acts)
+        self.critic = Critic(state_dim)
         self.optimizer = optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=lr)
-        self.buffer = OnPolicyBuffer()
+        self.buffer = OnPolicyBuffer(state_dim, num_steps)
         
     def act(self, state):
         state = torch.FloatTensor(state)
-        
-        dist = self.actor.pi(state)
-        value = self.critic.v(state)
-        
+        probs = self.actor.pi(state)
+        dist = torch.distributions.Categorical(probs)
         action = dist.sample()
-        log_prob = dist.log_prob(action)
 
-        return action.numpy(), log_prob, value
+        return action.numpy()
+        
+            
+    def compute_rewards_to_go(self, next_value, gamma=0.99):
+        R = next_value
+        returns = []
+        for step in reversed(range(len(self.buffer.rewards))):
+            R = torch.FloatTensor(self.buffer.rewards[step]) + gamma * R * torch.FloatTensor(self.buffer.done_masks[step])
+            returns.insert(0, R)
+            
+        return returns
         
     def train(self, next_state):
         next_state = torch.FloatTensor(next_state)
         next_value = self.critic.v(next_state)
-        returns = self.buffer.compute_rewards_to_go(next_value)
+        returns = self.compute_rewards_to_go(next_value)
 
-        log_probs = torch.stack(self.buffer.log_probs)
-        returns   = torch.cat(returns).detach()
-        values    = torch.cat(self.buffer.values)
+        states = torch.FloatTensor(self.buffer.states)
+        actions = torch.IntTensor(self.buffer.actions)
+        # actions = torch.cas
         
+        probs = self.actor.pi(states, softmax_dim=1)
+        probs = probs.gather(1, actions.long())
+        log_probs = torch.log(probs)
+        # log_probs = torch.zeros_like(actions)
+        # for i in range(len(self.buffer.actions)):
+        #     dist = self.actor.pi(states[i])
+        #     log_probs[i] = dist.log_prob(actions[i])
+        # log_probs = dists.log_prob(actions)
+        # log_probs = log_probs[:, 0]
+        values    = self.critic.v(states)
+
+        returns   = torch.cat(returns).detach()
         advantage = returns - values
 
         actor_loss  = -(log_probs * advantage.detach()).mean()

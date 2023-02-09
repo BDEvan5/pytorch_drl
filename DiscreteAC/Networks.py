@@ -16,10 +16,12 @@ class Actor(nn.Module):
     def pi(self, x, softmax_dim = 0):
         x = F.relu(self.fc1(x))
         x = self.fc_pi(x)
-        prob = F.softmax(x, dim=softmax_dim)
-        dist  = Categorical(prob)
+        probs = F.softmax(x, dim=softmax_dim)
         
-        return dist
+        return probs
+        # dist  = Categorical(prob)
+        
+        # return dist
     
     
 class Critic(nn.Module):

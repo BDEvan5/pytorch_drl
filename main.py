@@ -28,12 +28,13 @@ def test_td3():
 def test_a2c():
     env_name = "CartPole-v1"
     env = gym.make(env_name)
+    num_steps = 100
 
-    num_inputs  = env.observation_space.shape[0]
-    num_outputs = env.action_space.n
-    agent = A2C(num_inputs=num_inputs, num_outputs=num_outputs)
+    state_dim  = env.observation_space.shape[0]
+    n_acts = env.action_space.n
+    agent = A2C(state_dim, n_acts, num_steps)
     
-    DiscreteTrainingLoop(agent, env)
+    DiscreteTrainingLoop(agent, env, num_steps)
     
     
 if __name__ == '__main__':
