@@ -2,8 +2,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from Components.Networks import PolicyNet, CriticNet
-from Components.ReplayBuffers import ReplayBuffer, SmartBuffer
+from Continuous.Networks import PolicyNet, CriticNet
+from Continuous.ReplayBuffers import ReplayBuffer, SmartBuffer
 
 # hyper parameters
 BATCH_SIZE = 100

@@ -1,8 +1,8 @@
 import torch
 import torch.optim as optim
 
-from DiscreteAC.Networks import Actor, Critic
-from DiscreteAC.OnPolicyBuffer import OnPolicyBuffer
+from Discrete.Networks import Actor, Critic
+from Discrete.OnPolicyBuffer import OnPolicyBuffer
     
 gamma = 0.99
     

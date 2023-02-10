@@ -1,7 +1,7 @@
-from Components.Networks import PolicyNet, CriticNet
-from Components.ReplayBuffers import ReplayBuffer, SmartBuffer
-from Components.Noises import OrnsteinUhlenbeckNoise
-from Components.utils import soft_update
+from Continuous.Networks import PolicyNet, CriticNet
+from Continuous.ReplayBuffers import ReplayBuffer, SmartBuffer
+from Continuous.Noises import OrnsteinUhlenbeckNoise
+from Continuous.utils import soft_update
 
 import torch.optim as optim
 import numpy as np

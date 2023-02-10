@@ -1,13 +1,13 @@
-from Components.LearningAlgs.ddpg import DDPG
+from Continuous.LearningAlgs.ddpg import DDPG
 # from Components.LearningAlgs.td3_2 import TD3
-from Components.LearningAlgs.td3 import TD3
-from Components.TrainingLoops import ContinuousTrainingLoop, observe
+from Continuous.LearningAlgs.td3 import TD3
+from Continuous.TrainingLoops import ContinuousTrainingLoop, observe
 import gym 
 
-from DiscreteAC.TrainingLoop import DiscreteTrainingLoop
-from DiscreteAC.Algorithms.a2c import A2C
-from DiscreteAC.Algorithms.pg import PolicyGradient
-from DiscreteAC.Algorithms.a2c_ent import A2C_ent
+from Discrete.TrainingLoop import DiscreteTrainingLoop
+from Discrete.Algorithms.a2c import A2C
+from Discrete.Algorithms.pg import PolicyGradient
+from Discrete.Algorithms.a2c_ent import A2C_ent
 
 
 def test_ddpg():
