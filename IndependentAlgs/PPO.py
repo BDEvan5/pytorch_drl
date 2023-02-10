@@ -5,6 +5,8 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical
 
+import numpy as np
+
 #Hyperparameters
 learning_rate = 0.0005
 gamma         = 0.98
@@ -12,12 +14,13 @@ lmbda         = 0.95
 eps_clip      = 0.1
 K_epoch       = 3
 T_horizon     = 100
+h_size = 300
 
 class Actor(nn.Module):
-    def __init__(self, obs_space, action_space, h_size):
+    def __init__(self, state_dim, action_dim):
         super(Actor, self).__init__()
-        self.fc1 = nn.Linear(obs_space, h_size)
-        self.fc_pi = nn.Linear(h_size, action_space)
+        self.fc1 = nn.Linear(state_dim, h_size)
+        self.fc_pi = nn.Linear(h_size, action_dim)
 
     def pi(self, x, softmax_dim = 0):
         x = F.relu(self.fc1(x))
@@ -27,9 +30,9 @@ class Actor(nn.Module):
     
     
 class Critic(nn.Module):
-    def __init__(self, obs_space, action_space, h_size):
+    def __init__(self, state_dim):
         super(Critic, self).__init__()
-        self.fc1 = nn.Linear(obs_space, h_size)
+        self.fc1 = nn.Linear(state_dim, h_size)
         self.fc_v  = nn.Linear(h_size,1)
 
     def v(self, x):
@@ -38,26 +41,59 @@ class Critic(nn.Module):
         return v
 
 
-class PPO:
-    def __init__(self, obs_space, action_space, name):
-        self.name = name
-        self.action_space = action_space
-        self.obs_space = obs_space
+class OnPolicyBuffer:
+    def __init__(self, state_dim, length):
+        self.state_dim = state_dim
+        self.length = length
+        self.reset()
         
-        self.data = []
+        self.ptr = 0
+        
+    def add(self, state, action, next_state, reward, done):
+        self.states[self.ptr] = state
+        self.actions[self.ptr] = int(action)
+        self.next_states[self.ptr] = next_state
+        self.rewards[self.ptr] = reward
+        self.done_masks[self.ptr] = 1 - done
+
+        self.ptr += 1
+    
+    def reset(self):
+        self.states = np.zeros((self.length, self.state_dim))
+        self.actions = np.zeros((self.length, 1), dtype=np.int64)
+        self.next_states = np.zeros((self.length, self.state_dim))
+        self.rewards = np.zeros((self.length, 1))
+        self.done_masks = np.zeros((self.length, 1))
+        
+        self.ptr = 0
+   
+   
+    def make_data_batch(self):
+        states = torch.FloatTensor(self.states[0:self.ptr])
+        actions = torch.LongTensor(self.actions[0:self.ptr])
+        next_states = torch.FloatTensor(self.next_states[0:self.ptr])
+        rewards = torch.FloatTensor(self.rewards[0:self.ptr])
+        dones = torch.FloatTensor(self.done_masks[0:self.ptr])
+        
+        self.reset()
+        
+        return states, actions, next_states, rewards, dones
+
+
+class PPO:
+    def __init__(self, state_dim, action_dim, name):
+        self.name = name
+        self.action_dim = action_dim
+        self.state_dim = state_dim
+        
         self.network = None
         self.optimizer = None
 
-    def create_agent(self, h_size):
-        self.actor = Actor(self.obs_space, self.action_space, h_size)
-        self.critic = Critic(self.obs_space, self.action_space, h_size)
+        self.actor = Actor(self.state_dim, self.action_dim)
+        self.critic = Critic(self.state_dim)
         self.optimizer = optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=learning_rate)
         
-    def put_action_data(self, s, a, s_prime, r, done):
-        prob = self.actor.pi(torch.from_numpy(s).float())
-        transition = (s, a, r, s_prime, prob[a].item(), done)
-        
-        self.data.append(transition)
+        self.buffer = OnPolicyBuffer(state_dim, 1000)
         
     def act(self, obs):
         prob = self.actor.pi(torch.from_numpy(obs).float())
@@ -65,29 +101,32 @@ class PPO:
         a = m.sample().item()
 
         return a
-
+    
+    def calculate_advantage(self, delta):
+        advantage_lst = []
+        advantage = 0.0
+        for delta_t in delta[::-1]:
+            advantage = gamma * lmbda * advantage + delta_t[0]
+            advantage_lst.append([advantage])
+        advantage_lst.reverse()
+        advantage = torch.tensor(advantage_lst, dtype=torch.float)
+            
     def train(self):
-        if len(self.data) < T_horizon:
+        if self.buffer.ptr < T_horizon:
             return
 
-        s, a, r, s_prime, done_mask, prob_a = make_data_batch(self.data)
-        self.data = []
+        s, a, s_prime, r, done_mask = self.buffer.make_data_batch()
 
         for i in range(K_epoch):
             td_target = r + gamma * self.critic.v(s_prime) * done_mask
             delta = td_target - self.critic.v(s)
             delta = delta.detach().numpy()
 
-            advantage_lst = []
-            advantage = 0.0
-            for delta_t in delta[::-1]:
-                advantage = gamma * lmbda * advantage + delta_t[0]
-                advantage_lst.append([advantage])
-            advantage_lst.reverse()
-            advantage = torch.tensor(advantage_lst, dtype=torch.float)
+            advantage = self.calculate_advantage(delta)
 
             pi = self.actor.pi(s, softmax_dim=1)
             pi_a = pi.gather(1,a)
+            prob_a = pi_a.clone().detach()
             ratio = torch.exp(torch.log(pi_a) - torch.log(prob_a))  # a/b == exp(log(a)-log(b))
 
             surr1 = ratio * advantage
@@ -110,45 +149,26 @@ class PPO:
 
         torch.save(self.network, '%s/%s_network.pth' % (directory, filename))
 
-def make_data_batch(data):
-    s_lst, a_lst, r_lst, s_prime_lst, prob_a_lst, done_lst = [], [], [], [], [], []
-    for transition in data:
-        s, a, r, s_prime, prob_a, done = transition
-        
-        s_lst.append(s)
-        a_lst.append([a])
-        r_lst.append([r])
-        s_prime_lst.append(s_prime)
-        prob_a_lst.append([prob_a])
-        done_mask = 0 if done else 1
-        done_lst.append([done_mask])
-        
-    s,a,r,s_prime,done_mask, prob_a = torch.tensor(s_lst, dtype=torch.float), torch.tensor(a_lst), \
-                                        torch.tensor(r_lst), torch.tensor(s_prime_lst, dtype=torch.float), \
-                                        torch.tensor(done_lst, dtype=torch.float), torch.tensor(prob_a_lst)
-                                        
-    return s, a, r, s_prime, done_mask, prob_a
 
 def main():
     env = gym.make('CartPole-v1')
     model = PPO(4, 2, "ppo_cartpole")
-    model.create_agent(100)
     score = 0.0
     print_interval = 20
     step = 0
 
     for n_epi in range(1000):
-        s = env.reset()
+        state = env.reset()
         done = False
         while not done:
             for t in range(T_horizon):
-                a = model.act(s)
-                s_prime, r, done, info = env.step(a)
+                action = model.act(state)
+                next_state, reward, done, info = env.step(action)
 
-                model.put_action_data(s, a, s_prime, r/100.0, done)
-                s = s_prime
+                model.buffer.add(state, action, next_state, reward/100, done)
+                state = next_state
 
-                score += r
+                score += reward
                 step += 1
                 if done:
                     break
