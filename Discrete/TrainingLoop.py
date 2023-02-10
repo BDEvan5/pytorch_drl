@@ -24,7 +24,7 @@ def DiscreteTrainingLoop(agent, env, num_steps):
 
             next_state, reward, done, _ = env.step(action)
     
-            agent.buffer.add(state, action, next_state, reward, done)
+            agent.buffer.add(state, action, next_state, reward/100, done)
             ep_reward += reward
         
             state = next_state

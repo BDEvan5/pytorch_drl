@@ -44,5 +44,9 @@ This is done to:
 4. Provide a template for experiments in other domains.
 
 
+## Ideas
 
+Things that could be implemented subject to time...
+
+- Remove all hyperparameters from files and create a central yaml file with all hyper parameters
 

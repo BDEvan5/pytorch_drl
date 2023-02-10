@@ -8,6 +8,7 @@ from Discrete.TrainingLoop import DiscreteTrainingLoop
 from Discrete.Algorithms.a2c import A2C
 from Discrete.Algorithms.pg import PolicyGradient
 from Discrete.Algorithms.a2c_ent import A2C_ent
+from Discrete.Algorithms.ppo import PPO
 
 
 def test_ddpg():
@@ -60,13 +61,29 @@ def test_pg(): #! not working
     
     DiscreteTrainingLoop(agent, env, num_steps)
     
+        
+def test_ppo(): 
+    env_name = "CartPole-v1"
+    env = gym.make(env_name)
+    num_steps = 100
+
+    state_dim  = env.observation_space.shape[0]
+    n_acts = env.action_space.n
+    agent = PPO(state_dim, n_acts, num_steps)
+    
+    DiscreteTrainingLoop(agent, env, num_steps)
+    
     
 if __name__ == '__main__':
     # test_ddpg()
     # test_td3()
     
     # test_a2c()
-    test_a2c_ent()
+    # test_a2c_ent()
     # test_pg()
+    
+    test_ppo(
+        
+    )
         
         

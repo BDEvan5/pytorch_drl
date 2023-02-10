@@ -111,6 +111,8 @@ class PPO:
         advantage_lst.reverse()
         advantage = torch.tensor(advantage_lst, dtype=torch.float)
             
+        return advantage
+            
     def train(self):
         if self.buffer.ptr < T_horizon:
             return
@@ -166,6 +168,7 @@ def main():
                 next_state, reward, done, info = env.step(action)
 
                 model.buffer.add(state, action, next_state, reward/100, done)
+                # model.buffer.add(state, action, next_state, reward, done)
                 state = next_state
 
                 score += reward
