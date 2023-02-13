@@ -12,57 +12,17 @@ from torch.distributions import Normal
 
 torch.autograd.set_detect_anomaly(True)
 
+MEMORY_SIZE = 1000000
+SEED = 0
+discount=0.99
+tau=1e-2
+lr=1e-3
+auto_alpha=True
+batch_size=100
 
-
-class PolicyNet(nn.Module):
-    def __init__(self, num_inputs, num_actions, hidden_size=[400,300], 
-                 init_w=3e-3, log_std_min=-20, log_std_max=2, epsilon=1e-6):
-        super(PolicyNetwork, self).__init__()
-        
-        self.epsilon = epsilon
-        
-        self.log_std_min = log_std_min
-        self.log_std_max = log_std_max
-        
-        self.linear1 = nn.Linear(num_inputs, hidden_size[0])
-        self.linear2 = nn.Linear(hidden_size[0], hidden_size[1])
-        
-        self.mean_linear = nn.Linear(hidden_size[1], num_actions)
-        self.mean_linear.weight.data.uniform_(-init_w, init_w)
-        self.mean_linear.bias.data.uniform_(-init_w, init_w)
-        
-        self.log_std_linear = nn.Linear(hidden_size[1], num_actions)
-        self.log_std_linear.weight.data.uniform_(-init_w, init_w)
-        self.log_std_linear.bias.data.uniform_(-init_w, init_w)
-    
-    def forward(self, state, deterministic=False):
-        x = F.relu(self.linear1(state))
-        x = F.relu(self.linear2(x))
-        
-        mean    = self.mean_linear(x)
-        
-        log_std = self.log_std_linear(x)
-
-    
-# def make_stochastic(mean, log_std):
-        log_std = torch.clamp(log_std, self.log_std_min, self.log_std_max)
-        
-        std = torch.exp(log_std)
-        
-        log_prob = None
-        
-        if deterministic:
-            action = torch.tanh(mean)
-        else:
-            # assumes actions have been normalized to (0,1)
-            normal = Normal(0, 1)
-            z = mean + std * normal.sample().requires_grad_()
-            action = torch.tanh(z)
-            log_prob = Normal(mean, std).log_prob(z) - torch.log(1 - action * action + self.epsilon)
-            
-        return action, mean, log_std, log_prob, std
-    
-    
+torch.manual_seed(SEED)
+np.random.seed(SEED)
+   
     
 class PolicyNetwork(nn.Module):
     def __init__(self, num_inputs, num_actions, hidden_size=[400,300], 
@@ -85,7 +45,7 @@ class PolicyNetwork(nn.Module):
         self.log_std_linear.weight.data.uniform_(-init_w, init_w)
         self.log_std_linear.bias.data.uniform_(-init_w, init_w)
     
-    def forward(self, state, deterministic=False):
+    def forward(self, state):
         x = F.relu(self.linear1(state))
         x = F.relu(self.linear2(x))
         
@@ -93,25 +53,18 @@ class PolicyNetwork(nn.Module):
         
         log_std = self.log_std_linear(x)
         log_std = torch.clamp(log_std, self.log_std_min, self.log_std_max)
-        
         std = torch.exp(log_std)
         
-        log_prob = None
-        
-        if deterministic:
-            action = torch.tanh(mean)
-        else:
-            # assumes actions have been normalized to (0,1)
-            normal = Normal(0, 1)
-            z = mean + std * normal.sample().requires_grad_()
-            action = torch.tanh(z)
-            log_prob = Normal(mean, std).log_prob(z) - torch.log(1 - action * action + self.epsilon)
+        normal = Normal(0, 1) # assumes actions have been normalized to (0,1)
+        z = mean + std * normal.sample().requires_grad_()
+        action = torch.tanh(z)
+        log_prob = Normal(mean, std).log_prob(z) - torch.log(1 - action * action + self.epsilon)
             
         return action, mean, log_std, log_prob, std
     
-    def get_action(self, state, deterministic=False):
+    def get_action(self, state):
         state = torch.FloatTensor(state).unsqueeze(0)
-        action,_,_,_,_ =  self.forward(state, deterministic)
+        action,_,_,_,_ =  self.forward(state)
         act = action.cpu()[0][0]
         return act
     
@@ -136,29 +89,56 @@ class SoftQNetwork(nn.Module):
         return x
     
     
-    
-class ReplayBuffer:
-    def __init__(self, capacity):
-        self.capacity = capacity
-        self.buffer = []
-        self.position = 0
-    
-    def push(self, state, action, reward, next_state, done):
-        if len(self.buffer) < self.capacity:
-            self.buffer.append(None)
+
+class SmartBuffer(object):
+    def __init__(self, state_dim, action_dim):     
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+        self.ptr = 0
+
+        self.states = np.empty((MEMORY_SIZE, state_dim))
+        self.actions = np.empty((MEMORY_SIZE, action_dim))
+        self.next_states = np.empty((MEMORY_SIZE, state_dim))
+        self.rewards = np.empty((MEMORY_SIZE, 1))
+        self.dones = np.empty((MEMORY_SIZE, 1))
+
+    def add(self, state, action, next_state, reward, done):
+        self.states[self.ptr] = state
+        self.actions[self.ptr] = action
+        self.next_states[self.ptr] = next_state
+        self.rewards[self.ptr] = reward
+        self.dones[self.ptr] = done
+
+        self.ptr += 1
         
-        self.buffer[self.position] = (state, action, reward, next_state, done)
-        self.position = (self.position + 1) % self.capacity
-    
+        if self.ptr == MEMORY_SIZE: self.ptr = 0
+
     def sample(self, batch_size):
-        batch = random.sample(self.buffer, batch_size)
-        state, action, reward, next_state, done = map(np.stack, zip(*batch))
-        return state, action, reward, next_state, done
-    
-    def __len__(self):
-        return len(self.buffer)
-    
-    
+        ind = np.random.randint(0, self.ptr-1, size=batch_size)
+        states = np.empty((batch_size, self.state_dim))
+        actions = np.empty((batch_size, self.action_dim))
+        next_states = np.empty((batch_size, self.state_dim))
+        rewards = np.empty((batch_size, 1))
+        dones = np.empty((batch_size, 1))
+
+        for i, j in enumerate(ind): 
+            states[i] = self.states[j]
+            actions[i] = self.actions[j]
+            next_states[i] = self.next_states[j]
+            rewards[i] = self.rewards[j]
+            dones[i] = self.dones[j]
+            
+        states = torch.FloatTensor(states)
+        actions = torch.FloatTensor(actions)
+        next_states = torch.FloatTensor(next_states)
+        rewards = torch.FloatTensor(rewards)
+        dones = torch.FloatTensor(1- dones)
+
+        return states, actions, next_states, rewards, dones
+
+    def size(self):
+        return self.ptr
+
     
 class NormalizedActions(gym.ActionWrapper):
     def action(self, action):
@@ -170,36 +150,19 @@ class NormalizedActions(gym.ActionWrapper):
         
         return action
 
-def normalize_action(action, low, high):
-    action = low + (action + 1.0) * 0.5 * (high - low)
-    action = np.clip(action, low, high)
-    
-    return action
     
 class SAC(object):
-    
-    def __init__(self, env, replay_buffer, seed=0, hidden_dim=[400,300],
-        steps_per_epoch=200, epochs=1000, discount=0.99,
-        tau=1e-2, lr=1e-3, auto_alpha=True, batch_size=100, start_steps=10000,
-        max_ep_len=200, logger_kwargs=dict(), save_freq=1):
-        
-        # Set seeds
-        self.env = env
-        self.env.seed(seed)
-        torch.manual_seed(seed)
-        np.random.seed(seed)
-        
+    def __init__(self, env, replay_buffer):
         # env space
         self.state_dim = env.observation_space.shape[0]
         self.action_dim = env.action_space.shape[0] 
-        self.hidden_dim = hidden_dim
 
         # Soft Q
-        self.soft_q_net1 = SoftQNetwork(self.state_dim, self.action_dim, self.hidden_dim)
-        self.soft_q_net2 = SoftQNetwork(self.state_dim, self.action_dim, self.hidden_dim)
+        self.soft_q_net1 = SoftQNetwork(self.state_dim, self.action_dim)
+        self.soft_q_net2 = SoftQNetwork(self.state_dim, self.action_dim)
         
-        self.target_soft_q_net1 = SoftQNetwork(self.state_dim, self.action_dim, self.hidden_dim)
-        self.target_soft_q_net2 = SoftQNetwork(self.state_dim, self.action_dim, self.hidden_dim)
+        self.target_soft_q_net1 = SoftQNetwork(self.state_dim, self.action_dim)
+        self.target_soft_q_net2 = SoftQNetwork(self.state_dim, self.action_dim)
         
         for target_param, param in zip(self.target_soft_q_net1.parameters(), self.soft_q_net1.parameters()):
             target_param.data.copy_(param.data)
@@ -208,7 +171,7 @@ class SAC(object):
             target_param.data.copy_(param.data)
             
         # Policy
-        self.policy_net = PolicyNetwork(self.state_dim, self.action_dim, self.hidden_dim)
+        self.policy_net = PolicyNetwork(self.state_dim, self.action_dim)
         
         # Optimizers/Loss
         self.soft_q_criterion = nn.MSELoss()
@@ -217,47 +180,31 @@ class SAC(object):
         self.soft_q_optimizer2 = optim.Adam(self.soft_q_net2.parameters(), lr=lr)
         self.policy_optimizer = optim.Adam(self.policy_net.parameters(), lr=lr)
         
-        # alpha tuning
-        self.auto_alpha = auto_alpha
-        
-        if self.auto_alpha:
-            self.target_entropy = -np.prod(env.action_space.shape).item()
-            self.log_alpha = torch.zeros(1, requires_grad=True)
-            self.alpha_optimizer = optim.Adam([self.log_alpha], lr=lr)
+        self.target_entropy = -np.prod(env.action_space.shape).item()
+        self.log_alpha = torch.zeros(1, requires_grad=True)
+        self.alpha_optimizer = optim.Adam([self.log_alpha], lr=lr)
             
         self.replay_buffer = replay_buffer
         self.discount = discount
         self.batch_size = batch_size
         self.tau = tau
         
-    def get_action(self, state, deterministic=False):
+    def get_action(self, state):
         state = torch.FloatTensor(state).unsqueeze(0)
-        action  = self.policy_net.get_action(state, deterministic).detach()
+        action  = self.policy_net.get_action(state).detach()
         return action.numpy()
            
-    def train(self, iterations, batch_size = 100):
-        
+    def train(self, iterations):
         for _ in range(0,iterations):
-        
-            state, action, reward, next_state, done = self.replay_buffer.sample(batch_size)
-
-            state      = torch.FloatTensor(state)
-            next_state = torch.FloatTensor(next_state)
-            action     = torch.FloatTensor(action)
-            reward     = torch.FloatTensor(reward).unsqueeze(1)
-            done       = torch.FloatTensor(np.float32(done)).unsqueeze(1)
+            state, action, next_state, reward, done = self.replay_buffer.sample(batch_size)
 
             new_actions, policy_mean, policy_log_std, log_pi, *_ = self.policy_net(state)
 
-            if self.auto_alpha:
-                alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
-                self.alpha_optimizer.zero_grad()
-                alpha_loss.backward()
-                self.alpha_optimizer.step()
-                alpha = self.log_alpha.exp()
-            else:
-                alpha_loss = 0
-                alpha = 0.2 # constant used by OpenAI
+            alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
+            self.alpha_optimizer.zero_grad()
+            alpha_loss.backward()
+            self.alpha_optimizer.step()
+            alpha = self.log_alpha.exp()
 
             # Update Policy 
             q_new_actions = torch.min(
@@ -278,7 +225,7 @@ class SAC(object):
                 self.target_soft_q_net2(next_state, new_next_actions),
             ) - alpha * new_log_pi
 
-            q_target = reward + (1 - done) * self.discount * target_q_values
+            q_target = reward + done * self.discount * target_q_values
             q1_loss = self.soft_q_criterion(q1_pred, q_target.detach())
             q2_loss = self.soft_q_criterion(q2_pred, q_target.detach())
 
@@ -289,9 +236,6 @@ class SAC(object):
             self.soft_q_optimizer2.zero_grad()
             q2_loss.backward(retain_graph=True)
 
-            # policy_loss = (alpha*log_pi - q_new_actions).mean()
-
-
             self.policy_optimizer.zero_grad()
             policy_loss.backward()
             
@@ -300,15 +244,14 @@ class SAC(object):
             self.policy_optimizer.step()
 
             # Soft Updates
-            for target_param, param in zip(self.target_soft_q_net1.parameters(), self.soft_q_net1.parameters()):
-                target_param.data.copy_(
-                    target_param.data * (1.0 - self.tau) + param.data * self.tau
-                )
-
-            for target_param, param in zip(self.target_soft_q_net2.parameters(), self.soft_q_net2.parameters()):
-                target_param.data.copy_(
-                    target_param.data * (1.0 - self.tau) + param.data * self.tau
-                )
+            soft_update(self.soft_q_net1, self.target_soft_q_net1, self.tau)
+            soft_update(self.soft_q_net2, self.target_soft_q_net2, self.tau)
+                
+        
+def soft_update(net, net_target, tau):
+    for param_target, param in zip(net_target.parameters(), net.parameters()):
+        param_target.data.copy_(param_target.data * (1.0 - tau) + param.data * tau)
+     
      
 def observe(env, replay_buffer, observation_steps):
     time_steps = 0
@@ -319,7 +262,7 @@ def observe(env, replay_buffer, observation_steps):
         action = env.action_space.sample()
         next_state, reward, done, _ = env.step(action)
 
-        replay_buffer.push(state, action, reward, next_state, done)
+        replay_buffer.add(state, action, next_state, reward, done)
 
         state = next_state
         time_steps += 1
@@ -334,9 +277,10 @@ def observe(env, replay_buffer, observation_steps):
 
 
 def train(total_steps=10000, max_ep_len=500): 
-    replay_buffer = ReplayBuffer(int(1e6))
-
     env = NormalizedActions(gym.make("Pendulum-v1"))
+    env.seed(SEED)
+    
+    replay_buffer = SmartBuffer(env.observation_space.shape[0], env.action_space.shape[0])
 
     agent = SAC(env, replay_buffer)
 
@@ -355,8 +299,8 @@ def train(total_steps=10000, max_ep_len=500):
 
         done = False if ep_len == max_ep_len else done
 
-        replay_buffer.push(state, action, reward, next_state, done)
-
+        replay_buffer.add(state, action, next_state, reward, done)
+        
         state = next_state
         
         agent.train(2)
