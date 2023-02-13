@@ -14,11 +14,12 @@ torch.autograd.set_detect_anomaly(True)
 
 MEMORY_SIZE = 1000000
 SEED = 0
-discount=0.99
-tau=1e-2
-lr=1e-3
+TAU = 1e-2
+GAMMA = 0.99
+BATCH_SIZE = 100
+lr = 1e-3
+
 auto_alpha=True
-batch_size=100
 
 torch.manual_seed(SEED)
 np.random.seed(SEED)
@@ -152,17 +153,15 @@ class NormalizedActions(gym.ActionWrapper):
 
     
 class SAC(object):
-    def __init__(self, env, replay_buffer):
+    def __init__(self, state_dim, action_dim):
         # env space
-        self.state_dim = env.observation_space.shape[0]
-        self.action_dim = env.action_space.shape[0] 
+        self.replay_buffer = SmartBuffer(state_dim, action_dim)
 
         # Soft Q
-        self.soft_q_net1 = SoftQNetwork(self.state_dim, self.action_dim)
-        self.soft_q_net2 = SoftQNetwork(self.state_dim, self.action_dim)
-        
-        self.target_soft_q_net1 = SoftQNetwork(self.state_dim, self.action_dim)
-        self.target_soft_q_net2 = SoftQNetwork(self.state_dim, self.action_dim)
+        self.soft_q_net1 = SoftQNetwork(state_dim, action_dim)
+        self.soft_q_net2 = SoftQNetwork(state_dim, action_dim)
+        self.target_soft_q_net1 = SoftQNetwork(state_dim, action_dim)
+        self.target_soft_q_net2 = SoftQNetwork(state_dim, action_dim)
         
         for target_param, param in zip(self.target_soft_q_net1.parameters(), self.soft_q_net1.parameters()):
             target_param.data.copy_(param.data)
@@ -171,7 +170,7 @@ class SAC(object):
             target_param.data.copy_(param.data)
             
         # Policy
-        self.policy_net = PolicyNetwork(self.state_dim, self.action_dim)
+        self.policy_net = PolicyNetwork(state_dim, action_dim)
         
         # Optimizers/Loss
         self.soft_q_criterion = nn.MSELoss()
@@ -180,38 +179,37 @@ class SAC(object):
         self.soft_q_optimizer2 = optim.Adam(self.soft_q_net2.parameters(), lr=lr)
         self.policy_optimizer = optim.Adam(self.policy_net.parameters(), lr=lr)
         
-        self.target_entropy = -np.prod(env.action_space.shape).item()
+        self.target_entropy = -np.prod(action_dim).item()
         self.log_alpha = torch.zeros(1, requires_grad=True)
         self.alpha_optimizer = optim.Adam([self.log_alpha], lr=lr)
             
-        self.replay_buffer = replay_buffer
-        self.discount = discount
-        self.batch_size = batch_size
-        self.tau = tau
         
     def get_action(self, state):
         state = torch.FloatTensor(state).unsqueeze(0)
         action  = self.policy_net.get_action(state).detach()
         return action.numpy()
            
+    def train_alpha(self, log_pi):
+        alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
+        self.alpha_optimizer.zero_grad()
+        alpha_loss.backward()
+        self.alpha_optimizer.step()
+        alpha = self.log_alpha.exp()
+        return alpha
+           
     def train(self, iterations):
         for _ in range(0,iterations):
-            state, action, next_state, reward, done = self.replay_buffer.sample(batch_size)
+            state, action, next_state, reward, done = self.replay_buffer.sample(BATCH_SIZE)
 
             new_actions, policy_mean, policy_log_std, log_pi, *_ = self.policy_net(state)
 
-            alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
-            self.alpha_optimizer.zero_grad()
-            alpha_loss.backward()
-            self.alpha_optimizer.step()
-            alpha = self.log_alpha.exp()
+            alpha = self.train_alpha(log_pi)
 
             # Update Policy 
-            q_new_actions = torch.min(
-                self.soft_q_net1(state, new_actions), 
-                self.soft_q_net2(state, new_actions)
-            )
-
+            q1 = self.soft_q_net1(state, new_actions)
+            q2 = self.soft_q_net2(state, new_actions)
+            q_new_actions = torch.min(q1, q2)
+            
             policy_loss = (alpha*log_pi - q_new_actions).mean()
 
             # Update Soft Q Function
@@ -220,12 +218,11 @@ class SAC(object):
 
             new_next_actions, _, _, new_log_pi, *_ = self.policy_net(next_state)
 
-            target_q_values = torch.min(
-                self.target_soft_q_net1(next_state, new_next_actions),
-                self.target_soft_q_net2(next_state, new_next_actions),
-            ) - alpha * new_log_pi
+            target_q1 = self.target_soft_q_net1(next_state, new_next_actions)
+            target_q2 = self.target_soft_q_net2(next_state, new_next_actions)
+            target_q_values = torch.min(target_q1, target_q2) - alpha * new_log_pi
 
-            q_target = reward + done * self.discount * target_q_values
+            q_target = reward + done * GAMMA * target_q_values
             q1_loss = self.soft_q_criterion(q1_pred, q_target.detach())
             q2_loss = self.soft_q_criterion(q2_pred, q_target.detach())
 
@@ -244,8 +241,8 @@ class SAC(object):
             self.policy_optimizer.step()
 
             # Soft Updates
-            soft_update(self.soft_q_net1, self.target_soft_q_net1, self.tau)
-            soft_update(self.soft_q_net2, self.target_soft_q_net2, self.tau)
+            soft_update(self.soft_q_net1, self.target_soft_q_net1, TAU)
+            soft_update(self.soft_q_net2, self.target_soft_q_net2, TAU)
                 
         
 def soft_update(net, net_target, tau):
@@ -280,32 +277,30 @@ def train(total_steps=10000, max_ep_len=500):
     env = NormalizedActions(gym.make("Pendulum-v1"))
     env.seed(SEED)
     
-    replay_buffer = SmartBuffer(env.observation_space.shape[0], env.action_space.shape[0])
+    action_dim = env.action_space.shape[0]
+    state_dim = env.observation_space.shape[0]
+    
 
-    agent = SAC(env, replay_buffer)
+    agent = SAC(state_dim, action_dim)
 
     total_rewards = []
     avg_reward = None
     
     state, reward, done, ep_reward, ep_len, ep_num = env.reset(), 0, False, 0, 0, 1
     
-    observe(env, replay_buffer, 10000)
+    observe(env, agent.replay_buffer, 10000)
     for t in range(1,total_steps):
         action = agent.get_action(state)
-        
         next_state, reward, done, _ = env.step(action)
-        ep_reward += reward
-        ep_len += 1
-
         done = False if ep_len == max_ep_len else done
 
-        replay_buffer.add(state, action, next_state, reward, done)
-        
+        agent.replay_buffer.add(state, action, next_state, reward, done)
+        ep_reward += reward
+        ep_len += 1
         state = next_state
         
         agent.train(2)
         if done or (ep_len == max_ep_len):
-            
             total_rewards.append(ep_reward)
             avg_reward = np.mean(total_rewards[-100:])
             
