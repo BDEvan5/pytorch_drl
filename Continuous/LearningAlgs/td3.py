@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 
 from Continuous.Networks import PolicyNet, CriticNet
-from Continuous.ReplayBuffers import ReplayBuffer, SmartBuffer
+from Continuous.ReplayBuffers import SmartBuffer
 
 # hyper parameters
 BATCH_SIZE = 100

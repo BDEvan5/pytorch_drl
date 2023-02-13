@@ -49,12 +49,12 @@ class SmartBuffer(object):
         self.rewards = np.empty((MEMORY_SIZE, 1))
         self.dones = np.empty((MEMORY_SIZE, 1))
 
-    def add(self, s, a, s_p, r, d):
-        self.states[self.ptr] = s
-        self.actions[self.ptr] = a
-        self.next_states[self.ptr] = s_p
-        self.rewards[self.ptr] = r
-        self.dones[self.ptr] = d
+    def add(self, state, action, next_state, reward, done):
+        self.states[self.ptr] = state
+        self.actions[self.ptr] = action
+        self.next_states[self.ptr] = next_state
+        self.rewards[self.ptr] = reward
+        self.dones[self.ptr] = done
 
         self.ptr += 1
         
