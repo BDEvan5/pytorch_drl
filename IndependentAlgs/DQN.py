@@ -150,19 +150,6 @@ class DQN:
             self.exploration_rate *= EXPLORATION_DECAY 
             self.exploration_rate = max(EXPLORATION_MIN, self.exploration_rate)
 
-    def save(self, directory="./saves"):
-        filename = self.name
-
-        torch.save(self.model, '%s/%s_model.pth' % (directory, filename))
-        torch.save(self.target, '%s/%s_target.pth' % (directory, filename))
-
-    def load(self, directory="./saves"):
-        filename = self.name
-
-        self.model = torch.load('%s/%s_model.pth' % (directory, filename))
-        self.target = torch.load('%s/%s_target.pth' % (directory, filename))
-
-        print(f"Agent Loaded: {filename}")
 
 
 def test_cartpole():
@@ -172,7 +159,7 @@ def test_cartpole():
 
     print_n = 20
     rewards = []
-    for n in range(500):
+    for n in range(200):
         score, done, state = 0, False, env.reset()
         while not done:
             a = dqn.sample_action(state)
@@ -183,7 +170,6 @@ def test_cartpole():
             score += r
             dqn.experience_replay()
 
-        dqn.save()
         rewards.append(score)
         if n % print_n == 1:
             print(f"Run: {n} --> Score: {score} --> Mean: {np.mean(rewards[-20:])} --> exp: {dqn.exploration_rate}")

@@ -13,17 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-class NormalizedActions(gym.ActionWrapper):
-    def action(self, action):
-        low  = self.action_space.low
-        high = self.action_space.high
 
-        action = low + (action + 1.0) * 0.5 * (high - low)
-        action = np.clip(action, low, high)
-        
-        return action
-
-    
 
 def test_ddpg():
     env_name = 'Pendulum-v1'

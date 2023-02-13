@@ -43,14 +43,18 @@ class SAC(object):
         state = torch.FloatTensor(state).unsqueeze(0)
         action, _ =  self.policy_net(state)
         return action.detach()[0].numpy()
-           
-    def update_alpha(self, state):
-        new_actions, log_pi = self.policy_net(state)
-        alpha_loss = -self.log_alpha * (log_pi + self.target_entropy).detach().mean()
-        
-        self.alpha_optimizer.zero_grad()
-        alpha_loss.backward()
-        self.alpha_optimizer.step()
+               
+    def train(self, iterations=2):
+        for _ in range(0, iterations):
+            state, action, next_state, reward, done = self.memory.sample(BATCH_SIZE)
+            alpha = self.log_alpha.exp()
+            
+            self.update_policy(state, alpha)
+            self.update_Q(state, action, next_state, reward, done, alpha)
+            self.update_alpha(state)
+            
+            soft_update(self.soft_q_net1, self.target_soft_q_net1, TAU)
+            soft_update(self.soft_q_net2, self.target_soft_q_net2, TAU)
         
     def update_policy(self, state, alpha):
         new_actions, log_pi = self.policy_net(state)
@@ -83,17 +87,13 @@ class SAC(object):
             q_loss.backward()
             self.q_optimiser.step()
            
-    def train(self, iterations=2):
-        for _ in range(0, iterations):
-            state, action, next_state, reward, done = self.memory.sample(BATCH_SIZE)
-            alpha = self.log_alpha.exp()
-            
-            self.update_policy(state, alpha)
-            self.update_Q(state, action, next_state, reward, done, alpha)
-            self.update_alpha(state)
-            
-            soft_update(self.soft_q_net1, self.target_soft_q_net1, TAU)
-            soft_update(self.soft_q_net2, self.target_soft_q_net2, TAU)
+    def update_alpha(self, state):
+        new_actions, log_pi = self.policy_net(state)
+        alpha_loss = -self.log_alpha * (log_pi + self.target_entropy).detach().mean()
+        
+        self.alpha_optimizer.zero_grad()
+        alpha_loss.backward()
+        self.alpha_optimizer.step()
                 
         
 def soft_update(net, net_target, tau):

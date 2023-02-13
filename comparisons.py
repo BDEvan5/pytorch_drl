@@ -1,6 +1,6 @@
 from Continuous.LearningAlgs.ddpg import DDPG
-# from Components.LearningAlgs.td3_2 import TD3
 from Continuous.LearningAlgs.td3 import TD3
+from Continuous.LearningAlgs.sac import SAC
 from Continuous.TrainingLoops import ContinuousTrainingLoop, observe
 import gym 
 
@@ -9,6 +9,7 @@ from Discrete.Algorithms.a2c import A2C
 from Discrete.Algorithms.a2c_ent import A2C_ent
 from Discrete.Algorithms.ppo import PPO
 
+import utils
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -45,7 +46,12 @@ def compare_discrete_ac():
 def compare_continuous():
     env_name = "Pendulum-v1"
     env = gym.make(env_name)
+    env = utils.NormalizedActions(env)
 
+    agent = SAC(env.observation_space.shape[0], env.action_space.shape[0])
+    observe(env, agent.memory, 10000)
+    sac_lengths, sac_rewards = ContinuousTrainingLoop(agent, env)
+    
     agent = DDPG(env.observation_space.shape[0], env.action_space.shape[0], env.action_space.high[0])
     observe(env, agent.memory, 10000)
     ddpg_lengths, ddpg_rewards = ContinuousTrainingLoop(agent, env)
@@ -53,10 +59,11 @@ def compare_continuous():
     agent = TD3(env.observation_space.shape[0], env.action_space.shape[0], env.action_space.high[0])
     observe(env, agent.memory, 10000)
     td3_lengths, td3_rewards = ContinuousTrainingLoop(agent, env)
-    
+            
     plt.figure(1, figsize=(5,5))
-    plt.plot(ddpg_lengths, ddpg_rewards, label="DDPG", color='blue')
-    plt.plot(td3_lengths, td3_rewards, label="TD3", color='red')
+    plt.plot(ddpg_lengths, ddpg_rewards, label="DDPG", color=utils.colors[0])
+    plt.plot(td3_lengths, td3_rewards, label="TD3", color=utils.colors[1])
+    plt.plot(sac_lengths, sac_rewards, label="SAC", color=utils.colors[2])
     
     plt.legend()
     plt.grid()
@@ -68,7 +75,7 @@ def compare_continuous():
     plt.show()
     
 if __name__ == "__main__":
-    compare_discrete_ac()
-    # compare_continuous()
+    # compare_discrete_ac()
+    compare_continuous()
     
     
