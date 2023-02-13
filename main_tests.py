@@ -53,17 +53,7 @@ def test_a2c_ent():
     
     DiscreteTrainingLoop(agent, env, num_steps)
     
-def test_pg(): #! not working
-    env_name = "CartPole-v1"
-    env = gym.make(env_name)
-    num_steps = 100
 
-    state_dim  = env.observation_space.shape[0]
-    n_acts = env.action_space.n
-    agent = PolicyGradient(state_dim, n_acts, num_steps)
-    
-    DiscreteTrainingLoop(agent, env, num_steps)
-    
         
 def test_ppo(): 
     env_name = "CartPole-v1"
