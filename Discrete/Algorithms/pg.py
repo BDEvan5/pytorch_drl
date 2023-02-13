@@ -5,12 +5,14 @@ from Discrete.Networks import Actor, Critic
 from Discrete.OnPolicyBuffer import OnPolicyBuffer
     
 gamma = 0.99
+lr          = 3e-4
+
     
 class PolicyGradient:
-    def __init__(self, num_inputs, num_outputs) -> None:
+    def __init__(self, num_inputs, num_outputs, num_steps) -> None:
         self.actor = Actor(num_inputs, num_outputs)
         self.optimizer = optim.Adam(list(self.actor.parameters()), lr=lr)
-        self.buffer = OnPolicyBuffer()
+        self.buffer = OnPolicyBuffer(num_inputs, num_steps*2)
         
     def act(self, state):
         state = torch.FloatTensor(state)
