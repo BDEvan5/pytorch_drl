@@ -1,5 +1,4 @@
 import numpy as np
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -45,32 +44,30 @@ class SAC(object):
         action  = self.policy_net.get_action(state).detach()
         return action.numpy()
            
-    def train_alpha(self, log_pi):
+    def update_alpha(self, state):
+        new_actions, policy_mean, policy_log_std, log_pi, *_ = self.policy_net(state)
         alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
         
         self.alpha_optimizer.zero_grad()
         alpha_loss.backward()
         self.alpha_optimizer.step()
         
+    def update_policy(self, state, alpha):
+        new_actions, policy_mean, policy_log_std, log_pi, *_ = self.policy_net(state)
+
+        # Update Policy 
+        q1 = self.soft_q_net1(state, new_actions)
+        q2 = self.soft_q_net2(state, new_actions)
+        q_new_actions = torch.min(q1, q2)
+        
         alpha = self.log_alpha.exp()
-        return alpha
-           
-    def train(self, iterations=2):
-        for _ in range(0,iterations):
-            state, action, next_state, reward, done = self.memory.sample(BATCH_SIZE)
-
-            new_actions, policy_mean, policy_log_std, log_pi, *_ = self.policy_net(state)
-
-            alpha = self.train_alpha(log_pi)
-
-            # Update Policy 
-            q1 = self.soft_q_net1(state, new_actions)
-            q2 = self.soft_q_net2(state, new_actions)
-            q_new_actions = torch.min(q1, q2)
-            
-            policy_loss = (alpha*log_pi - q_new_actions).mean()
-
-            # Update Soft Q Function
+        policy_loss = (alpha*log_pi - q_new_actions).mean()
+        
+        self.policy_optimizer.zero_grad()
+        policy_loss.backward()
+        self.policy_optimizer.step()
+        
+    def update_Q(self, state, action, next_state, reward, done, alpha):
             current_q1 = self.soft_q_net1(state, action)
             current_q2 = self.soft_q_net2(state, action)
 
@@ -84,14 +81,18 @@ class SAC(object):
             q_loss = self.soft_q_criterion(current_q1, q_target.detach()) + self.soft_q_criterion(current_q2, q_target.detach())
             
             self.q_optimiser.zero_grad()
-            q_loss.backward(retain_graph=True)
-
-            self.policy_optimizer.zero_grad()
-            policy_loss.backward()
-            
+            q_loss.backward()
             self.q_optimiser.step()
-            self.policy_optimizer.step()
-
+           
+    def train(self, iterations=2):
+        for _ in range(0, iterations):
+            state, action, next_state, reward, done = self.memory.sample(BATCH_SIZE)
+            alpha = self.log_alpha.exp()
+            
+            self.update_policy(state, alpha)
+            self.update_Q(state, action, next_state, reward, done, alpha)
+            self.update_alpha(state)
+            
             soft_update(self.soft_q_net1, self.target_soft_q_net1, TAU)
             soft_update(self.soft_q_net2, self.target_soft_q_net2, TAU)
                 
