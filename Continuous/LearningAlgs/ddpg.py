@@ -12,7 +12,7 @@ import torch.nn.functional as F
 lr_mu        = 0.0005
 lr_q         = 0.001
 gamma        = 0.99
-batch_size   = 32
+BATCH_SIZE   = 32
 tau          = 0.005 # for target network soft update
 
   
@@ -39,14 +39,13 @@ class DDPG:
         action = action.detach().numpy() + self.ou_noise()
         
         return action
-        
       
     def train(self):
-        if self.memory.size() < 1000:
+        if self.memory.size() < BATCH_SIZE:
             return
         
         for i in range(1):
-            s, a, s_prime, r, done_mask  = self.memory.sample(batch_size)
+            s, a, s_prime, r, done_mask  = self.memory.sample(BATCH_SIZE)
             
             target = r + gamma * self.critic_target(s_prime, self.actor_target(s_prime)) * done_mask
             q_loss = F.smooth_l1_loss(self.critic(s,a), target.detach())

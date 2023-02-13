@@ -4,10 +4,9 @@ reward_scale = 100
 
 def ContinuousTrainingLoop(agent, env):
     
-    score = 0.0
-    print_interval = 20
     steps = 0
-    for n_epi in range(100):
+    lengths, rewards = [], []
+    for n_epi in range(20):
         state = env.reset()
         done = False
         
@@ -20,22 +19,19 @@ def ContinuousTrainingLoop(agent, env):
             
             done = 0 if ep_steps + 1 == 200 else float(done)
             agent.memory.add(state, action, next_state, reward, done)  
-            # agent.memory.put((s, a, s_prime, r, done))
             
-            score += reward
             ep_score += reward
             ep_steps += 1
             state = next_state
                 
             agent.train()
         
+        lengths.append(steps)
+        rewards.append(ep_score)
+        
         print("Step: {}, Episode :{}, Score : {:.1f}".format(steps, n_epi, ep_score))
         
-        # if n_epi%print_interval==0 and n_epi!=0:
-        #     print("Step: {}, # of episode :{}, avg score : {:.1f}".format(steps, n_epi, score/print_interval))
-        #     score = 0.0
-
-    env.close()
+    return lengths, rewards
 
 
 def observe(env, memory, observation_steps):
@@ -48,7 +44,6 @@ def observe(env, memory, observation_steps):
         next_state, reward, done, _ = env.step(action)
 
         memory.add(state, action, next_state, reward, done)  
-        # replay_buffer.put((obs, action, new_obs, reward, done))
 
         state = next_state
         time_steps += 1
@@ -59,6 +54,8 @@ def observe(env, memory, observation_steps):
 
         print("\rPopulating Buffer {}/{}.".format(time_steps, observation_steps), end="")
         sys.stdout.flush()
+
+    print("")
 
 
 if __name__ == '__main__':

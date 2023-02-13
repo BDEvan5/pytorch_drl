@@ -6,7 +6,6 @@ import gym
 
 from Discrete.TrainingLoop import DiscreteTrainingLoop
 from Discrete.Algorithms.a2c import A2C
-from Discrete.Algorithms.pg import PolicyGradient
 from Discrete.Algorithms.a2c_ent import A2C_ent
 from Discrete.Algorithms.ppo import PPO
 
@@ -38,11 +37,38 @@ def compare_discrete_ac():
     plt.xlabel("Training Steps")
     plt.ylabel("Reward")
     
-    plt.savefig("a2c_vs_ppo.svg")
-    plt.savefig("a2c_vs_ppo.pdf")
+    plt.savefig("Results/Training/a2c_vs_ppo.svg")
+    # plt.savefig("Results/Training/a2c_vs_ppo.pdf")
+    
+    plt.show()
+    
+def compare_continuous():
+    env_name = "Pendulum-v1"
+    env = gym.make(env_name)
+
+    agent = DDPG(env.observation_space.shape[0], env.action_space.shape[0], env.action_space.high[0])
+    observe(env, agent.memory, 10000)
+    ddpg_lengths, ddpg_rewards = ContinuousTrainingLoop(agent, env)
+    
+    agent = TD3(env.observation_space.shape[0], env.action_space.shape[0], env.action_space.high[0])
+    observe(env, agent.memory, 10000)
+    td3_lengths, td3_rewards = ContinuousTrainingLoop(agent, env)
+    
+    plt.figure(1, figsize=(5,5))
+    plt.plot(ddpg_lengths, ddpg_rewards, label="DDPG", color='blue')
+    plt.plot(td3_lengths, td3_rewards, label="TD3", color='red')
+    
+    plt.legend()
+    plt.grid()
+    plt.xlabel("Training Steps")
+    plt.ylabel("Reward")
+    
+    plt.savefig("Results/Training/compare_continuous.svg")
     
     plt.show()
     
 if __name__ == "__main__":
     compare_discrete_ac()
+    # compare_continuous()
+    
     

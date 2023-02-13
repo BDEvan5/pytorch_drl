@@ -6,7 +6,6 @@ import gym
 
 from Discrete.TrainingLoop import DiscreteTrainingLoop
 from Discrete.Algorithms.a2c import A2C
-from Discrete.Algorithms.pg import PolicyGradient
 from Discrete.Algorithms.a2c_ent import A2C_ent
 from Discrete.Algorithms.ppo import PPO
 
@@ -23,6 +22,14 @@ def test_ddpg():
     
     
 def test_td3():
+    env_name = 'Pendulum-v1'
+    env = gym.make(env_name)
+    agent = TD3(env.observation_space.shape[0], env.action_space.shape[0], env.action_space.high[0])
+    
+    observe(env, agent.memory, 10000)
+    ContinuousTrainingLoop(agent, env)
+        
+def test_sac():
     env_name = 'Pendulum-v1'
     env = gym.make(env_name)
     agent = TD3(env.observation_space.shape[0], env.action_space.shape[0], env.action_space.high[0])
@@ -52,9 +59,7 @@ def test_a2c_ent():
     agent = A2C_ent(state_dim, n_acts, num_steps)
     
     DiscreteTrainingLoop(agent, env, num_steps)
-    
-
-        
+       
 def test_ppo(): 
     env_name = "CartPole-v1"
     env = gym.make(env_name)
@@ -72,11 +77,10 @@ def test_ppo():
     
 if __name__ == '__main__':
     # test_ddpg()
-    # test_td3()
+    test_td3()
     
     # test_a2c()
     # test_a2c_ent()
-    test_pg()
     
     # test_ppo()
         

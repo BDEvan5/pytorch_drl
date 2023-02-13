@@ -19,6 +19,8 @@ POLICY_NOISE = 0.2
 class TD3(object):
     def __init__(self, state_dim, action_dim, action_scale):
         self.action_scale = action_scale
+        self.act_dim = action_dim
+        
         self.actor = PolicyNet(state_dim, action_dim, action_scale)
         self.actor_target = PolicyNet(state_dim, action_dim, action_scale)
         self.actor_target.load_state_dict(self.actor.state_dict())
@@ -32,9 +34,6 @@ class TD3(object):
         self.critic_target_2.load_state_dict(self.critic_2.state_dict())
         self.critic_optimizer = torch.optim.Adam(list(self.critic_1.parameters()) + list(self.critic_2.parameters()), lr=1e-3)
 
-        self.act_dim = action_dim
-        
-        # self.memory = ReplayBuffer()
         self.memory = SmartBuffer(state_dim, action_dim)
 
     def act(self, state, noise=EXPLORE_NOISE):
@@ -52,36 +51,41 @@ class TD3(object):
             return
         for it in range(iterations):
             state, action, next_state, reward, done = self.memory.sample(BATCH_SIZE)
-    
-            noise = torch.normal(torch.zeros(action.size()), POLICY_NOISE)
-            noise = noise.clamp(-NOISE_CLIP, NOISE_CLIP)
-            next_action = (self.actor_target(next_state) + noise).clamp(-self.action_scale, self.action_scale)
-
-            target_Q1 = self.critic_target_1(next_state, next_action)
-            target_Q2 = self.critic_target_2(next_state, next_action)
-            target_Q = torch.min(target_Q1, target_Q2)
-            target_Q = reward + (done * GAMMA * target_Q).detach()
-
-            current_Q1 = self.critic_1(state, action)
-            current_Q2 = self.critic_2(state, action)
-
-            critic_loss = F.mse_loss(current_Q1, target_Q) + F.mse_loss(current_Q2, target_Q) 
-
-            self.critic_optimizer.zero_grad()
-            critic_loss.backward()
-            self.critic_optimizer.step()
-
+            self.update_critic(state, action, next_state, reward, done)
+        
             if it % POLICY_FREQUENCY == 0:
-                actor_loss = -self.critic_1(state, self.actor(state)).mean()
-
-                self.actor_optimizer.zero_grad()
-                actor_loss.backward()
-                self.actor_optimizer.step()
-                
+                self.update_policy(state)
                 
                 soft_update(self.critic_1, self.critic_target_1, tau)
                 soft_update(self.critic_2, self.critic_target_2, tau)
                 soft_update(self.actor, self.actor_target, tau)
+    
+    def update_critic(self, state, action, next_state, reward, done):
+        noise = torch.normal(torch.zeros(action.size()), POLICY_NOISE)
+        noise = noise.clamp(-NOISE_CLIP, NOISE_CLIP)
+        next_action = (self.actor_target(next_state) + noise).clamp(-self.action_scale, self.action_scale)
+
+        target_Q1 = self.critic_target_1(next_state, next_action)
+        target_Q2 = self.critic_target_2(next_state, next_action)
+        target_Q = torch.min(target_Q1, target_Q2)
+        target_Q = reward + (done * GAMMA * target_Q).detach()
+
+        current_Q1 = self.critic_1(state, action)
+        current_Q2 = self.critic_2(state, action)
+
+        critic_loss = F.mse_loss(current_Q1, target_Q) + F.mse_loss(current_Q2, target_Q) 
+
+        self.critic_optimizer.zero_grad()
+        critic_loss.backward()
+        self.critic_optimizer.step()
+
+    def update_policy(self, state):
+        actor_loss = -self.critic_1(state, self.actor(state)).mean()
+
+        self.actor_optimizer.zero_grad()
+        actor_loss.backward()
+        self.actor_optimizer.step()
+                
 
 
         
