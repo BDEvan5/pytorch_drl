@@ -1,5 +1,5 @@
 from Continuous.LearningAlgs.ddpg import DDPG
-# from Components.LearningAlgs.td3_2 import TD3
+from Continuous.LearningAlgs.sac import SAC
 from Continuous.LearningAlgs.td3 import TD3
 from Continuous.TrainingLoops import ContinuousTrainingLoop, observe
 import gym 
@@ -12,6 +12,18 @@ from Discrete.Algorithms.ppo import PPO
 import matplotlib.pyplot as plt
 import numpy as np
 
+
+class NormalizedActions(gym.ActionWrapper):
+    def action(self, action):
+        low  = self.action_space.low
+        high = self.action_space.high
+
+        action = low + (action + 1.0) * 0.5 * (high - low)
+        action = np.clip(action, low, high)
+        
+        return action
+
+    
 
 def test_ddpg():
     env_name = 'Pendulum-v1'
@@ -32,7 +44,9 @@ def test_td3():
 def test_sac():
     env_name = 'Pendulum-v1'
     env = gym.make(env_name)
-    agent = TD3(env.observation_space.shape[0], env.action_space.shape[0], env.action_space.high[0])
+    env = NormalizedActions(env)
+    
+    agent = SAC(env.observation_space.shape[0], env.action_space.shape[0])
     
     observe(env, agent.memory, 10000)
     ContinuousTrainingLoop(agent, env)
@@ -77,7 +91,8 @@ def test_ppo():
     
 if __name__ == '__main__':
     # test_ddpg()
-    test_td3()
+    # test_td3()
+    test_sac()
     
     # test_a2c()
     # test_a2c_ent()
