@@ -41,21 +41,20 @@ class SAC(object):
         
     def act(self, state):
         state = torch.FloatTensor(state).unsqueeze(0)
-        action  = self.policy_net.get_action(state).detach()
-        return action.numpy()
+        action, _ =  self.policy_net(state)
+        return action.detach()[0].numpy()
            
     def update_alpha(self, state):
-        new_actions, policy_mean, policy_log_std, log_pi, *_ = self.policy_net(state)
-        alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
+        new_actions, log_pi = self.policy_net(state)
+        alpha_loss = -self.log_alpha * (log_pi + self.target_entropy).detach().mean()
         
         self.alpha_optimizer.zero_grad()
         alpha_loss.backward()
         self.alpha_optimizer.step()
         
     def update_policy(self, state, alpha):
-        new_actions, policy_mean, policy_log_std, log_pi, *_ = self.policy_net(state)
+        new_actions, log_pi = self.policy_net(state)
 
-        # Update Policy 
         q1 = self.soft_q_net1(state, new_actions)
         q2 = self.soft_q_net2(state, new_actions)
         q_new_actions = torch.min(q1, q2)
@@ -71,7 +70,7 @@ class SAC(object):
             current_q1 = self.soft_q_net1(state, action)
             current_q2 = self.soft_q_net2(state, action)
 
-            new_next_actions, _, _, new_log_pi, *_ = self.policy_net(next_state)
+            new_next_actions, new_log_pi= self.policy_net(next_state)
 
             target_q1 = self.target_soft_q_net1(next_state, new_next_actions)
             target_q2 = self.target_soft_q_net2(next_state, new_next_actions)

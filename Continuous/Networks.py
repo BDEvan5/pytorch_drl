@@ -47,15 +47,10 @@ class PolicyNetworkSAC(nn.Module):
         
         z = mean + std * normal.sample().requires_grad_()
         action = torch.tanh(z)
-        log_prob = torch.distributions.Normal(mean, std).log_prob(z) - torch.log(1 - action * action + EPSILON)
+        log_prob = torch.distributions.Normal(mean, std).log_prob(z) - torch.log(1 - action * action + EPSILON) 
             
-        return action, mean, log_std, log_prob, std
-    
-    def get_action(self, state):
-        state = torch.FloatTensor(state).unsqueeze(0)
-        action, _, _, _, _ =  self.forward(state)
-        return action[0][0]
-    
+        return action, log_prob
+   
 
 class CriticNet(nn.Module):
     def __init__(self, state_dim, act_dim):

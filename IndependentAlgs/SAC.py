@@ -324,7 +324,7 @@ def train(total_steps=10000, max_ep_len=200):
     
     observe(env, replay_buffer, 10000)
     for t in range(1,total_steps):
-        action = agent.get_action(state)
+        action = agent.get_action(state, deterministic=True)
         
         next_state, reward, done, _ = env.step(action)
         ep_reward += reward
