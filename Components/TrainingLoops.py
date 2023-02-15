@@ -1,46 +1,7 @@
 import sys
 from matplotlib import pyplot as plt
+from utils import plot
 
-
-def plot(frame_idx, rewards):
-    plt.figure(1, figsize=(5,5))
-    plt.title('frame %s. reward: %s' % (frame_idx, rewards[-1]))
-    plt.plot(rewards)
-    plt.pause(0.00001)
-
-
-def OnPolicyTrainingLoop(agent, env, num_steps, view=False):
-    frame_idx    = 0
-    state = env.reset()
-    training_rewards = []
-    cum_lengths = []
-    ep_reward = 0
-
-    while frame_idx < 50000:
-        for _ in range(num_steps):
-            action = agent.act(state)
-
-            next_state, reward, done, _ = env.step(action)
-    
-            agent.replay_buffer.add(state, action, next_state, reward/100, done)
-            ep_reward += reward
-        
-            state = next_state
-            frame_idx += 1
-        
-            if done:
-                print(f"{frame_idx} -> Episode reward: ", ep_reward)
-                training_rewards.append(ep_reward)
-                cum_lengths.append(frame_idx)
-                ep_reward = 0
-                state = env.reset()
-                
-            if frame_idx % 1000 == 0 and view:
-                plot(frame_idx, training_rewards)
-            
-        agent.train(next_state)
-
-    return cum_lengths, training_rewards
 
 def OnPolicyTrainingLoop_eps(agent, env, batch_eps=1, view=False):
     frame_idx    = 0
@@ -101,40 +62,6 @@ def OffPolicyTrainingLoop(agent, env, training_steps=10000, view=True):
             plot(t, rewards)
         
     return lengths, rewards
-
-# def OffPolicyTrainingLoop(agent, env, num_steps, view=False):
-#     frame_idx    = 0
-#     state = env.reset()
-#     training_rewards = []
-#     cum_lengths = []
-#     ep_reward = 0
-
-#     while frame_idx < 50000:
-#         for _ in range(num_steps):
-#             action = agent.act(state)
-
-#             next_state, reward, done, _ = env.step(action)
-    
-#             agent.replay_buffer.add(state, action, next_state, reward/100, done)
-#             ep_reward += reward
-        
-#             state = next_state
-#             frame_idx += 1
-        
-#             if done:
-#                 print(f"{frame_idx} -> Episode reward: ", ep_reward)
-#                 training_rewards.append(ep_reward)
-#                 cum_lengths.append(frame_idx)
-#                 ep_reward = 0
-#                 state = env.reset()
-                
-#             if frame_idx % 1000 == 0 and view:
-#                 plot(frame_idx, training_rewards)
-            
-#         agent.train(next_state)
-
-#     return cum_lengths, training_rewards
-
 
 reward_scale = 100
 

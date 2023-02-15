@@ -1,6 +1,6 @@
 import gym 
 import numpy as np
-
+import matplotlib.pyplot as plt
         
 def soft_update(net, net_target, tau):
     for param_target, param in zip(net_target.parameters(), net.parameters()):
@@ -16,7 +16,12 @@ class NormalizedActions(gym.ActionWrapper):
         
         return action
 
-    
+
+def plot(frame_idx, rewards):
+    plt.figure(1, figsize=(5,5))
+    plt.title('frame %s. reward: %s' % (frame_idx, rewards[-1]))
+    plt.plot(rewards)
+    plt.pause(0.00001) 
         
 colors = ["#e60049", "#0bb4ff", "#50e991", "#e6d800", "#9b19f5", "#ffa300", "#dc0ab4", "#b3d4ff", "#00bfa0"]
         

@@ -66,7 +66,7 @@ def test_ppo():
 
     state_dim  = env.observation_space.shape[0]
     n_acts = env.action_space.n
-    agent = PPO(state_dim, n_acts, 100)
+    agent = PPO(state_dim, n_acts)
     
     OnPolicyTrainingLoop_eps(agent, env, 5, view=True)
     

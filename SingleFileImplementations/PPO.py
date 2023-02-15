@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical
+import matplotlib.pyplot as plt
 
 import numpy as np
 
@@ -16,30 +17,36 @@ K_epoch       = 3
 T_horizon     = 100
 h_size = 300
 
-class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim):
-        super(Actor, self).__init__()
-        self.fc1 = nn.Linear(state_dim, h_size)
-        self.fc_pi = nn.Linear(h_size, action_dim)
+NN_LAYER_1 = 400
+NN_LAYER_2 = 300
+
+
+
+class SingleActor(nn.Module):
+    def __init__(self, obs_space, action_space):
+        super(SingleActor, self).__init__()
+        self.fc1 = nn.Linear(obs_space, NN_LAYER_1)
+        self.fc_pi = nn.Linear(NN_LAYER_1, action_space)
 
     def pi(self, x, softmax_dim = 0):
         x = F.relu(self.fc1(x))
         x = self.fc_pi(x)
-        prob = F.softmax(x, dim=softmax_dim)
-        return prob
+        probs = F.softmax(x, dim=softmax_dim)
+        
+        return probs
+        
     
-    
-class Critic(nn.Module):
-    def __init__(self, state_dim):
-        super(Critic, self).__init__()
-        self.fc1 = nn.Linear(state_dim, h_size)
-        self.fc_v  = nn.Linear(h_size,1)
+class SingleVNet(nn.Module):
+    def __init__(self, obs_space):
+        super(SingleVNet, self).__init__()
+        self.fc1 = nn.Linear(obs_space, NN_LAYER_1)
+        self.fc_v  = nn.Linear(NN_LAYER_1, 1)
 
     def v(self, x):
         x = F.relu(self.fc1(x))
         v = self.fc_v(x)
         return v
-
+    
 
 class OnPolicyBuffer:
     def __init__(self, state_dim, length):
@@ -67,7 +74,6 @@ class OnPolicyBuffer:
         
         self.ptr = 0
    
-   
     def make_data_batch(self):
         states = torch.FloatTensor(self.states[0:self.ptr])
         actions = torch.LongTensor(self.actions[0:self.ptr])
@@ -80,109 +86,114 @@ class OnPolicyBuffer:
         return states, actions, next_states, rewards, dones
 
 
+
 class PPO:
-    def __init__(self, state_dim, action_dim, name):
-        self.name = name
+    def __init__(self, state_dim, action_dim):
         self.action_dim = action_dim
         self.state_dim = state_dim
         
         self.network = None
         self.optimizer = None
 
-        self.actor = Actor(self.state_dim, self.action_dim)
-        self.critic = Critic(self.state_dim)
+        self.actor = SingleActor(self.state_dim, self.action_dim)
+        self.critic = SingleVNet(self.state_dim)
         self.optimizer = optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=learning_rate)
         
-        self.replay_buffer = OnPolicyBuffer(state_dim, 1000)
+        self.replay_buffer = OnPolicyBuffer(state_dim, 10000)
         
     def act(self, obs):
         prob = self.actor.pi(torch.from_numpy(obs).float())
-        m = Categorical(prob)
+        m = torch.distributions.Categorical(prob)
         a = m.sample().item()
 
         return a
     
-    def calculate_advantage(self, delta):
+    def generalised_advantage_estimation(self, delta):
         advantage_lst = []
         advantage = 0.0
         for delta_t in delta[::-1]:
             advantage = gamma * lmbda * advantage + delta_t[0]
             advantage_lst.append([advantage])
         advantage_lst.reverse()
-        advantage = torch.tensor(advantage_lst, dtype=torch.float)
+        advantage = torch.FloatTensor(advantage_lst)
             
         return advantage
             
-    def train(self):
+    def train(self, next_state=None):
         if self.replay_buffer.ptr < T_horizon:
             return
 
-        s, a, s_prime, r, done_mask = self.replay_buffer.make_data_batch()
+        states, actions, next_states, rewards, done_masks = self.replay_buffer.make_data_batch()
 
         for i in range(K_epoch):
-            td_target = r + gamma * self.critic.v(s_prime) * done_mask
-            delta = td_target - self.critic.v(s)
+            td_target = rewards + gamma * self.critic.v(next_states) * done_masks
+            delta = td_target - self.critic.v(states)
             delta = delta.detach().numpy()
 
-            advantage = self.calculate_advantage(delta)
+            advantage = self.generalised_advantage_estimation(delta)
 
-            pi = self.actor.pi(s, softmax_dim=1)
-            pi_a = pi.gather(1,a)
-            prob_a = pi_a.clone().detach()
-            ratio = torch.exp(torch.log(pi_a) - torch.log(prob_a))  # a/b == exp(log(a)-log(b))
+            probs = self.actor.pi(states, softmax_dim=1)
+            probs_for_actions = probs.gather(1,actions)
+            # cloning and calling detatch() is how the surrogate objective calculated. Calling detach() on a tensor removes it from the gradient calculation
+            prob_a = probs_for_actions.clone().detach()
+            ratio = torch.exp(torch.log(probs_for_actions) - torch.log(prob_a))  # a/b == exp(log(a)-log(b))
 
-            surr1 = ratio * advantage
-            surr2 = torch.clamp(ratio, 1-eps_clip, 1+eps_clip) * advantage
-            loss = -torch.min(surr1, surr2) + F.smooth_l1_loss(self.critic.v(s) , td_target.detach())
+            # implementing the clipped surrogate objective
+            surrogate_1 = ratio * advantage
+            surrogate_2 = torch.clamp(ratio, 1-eps_clip, 1+eps_clip) * advantage
+            loss = -torch.min(surrogate_1, surrogate_2) + F.smooth_l1_loss(self.critic.v(states) , td_target.detach())
 
             self.optimizer.zero_grad()
             loss.mean().backward()
             self.optimizer.step()
 
-    def load(self, directory="./saves"):
-        filename = self.name
 
-        self.network = torch.load('%s/%s_network.pth' % (directory, filename))
+def plot(frame_idx, rewards):
+    plt.figure(1, figsize=(5,5))
+    plt.title('frame %s. reward: %s' % (frame_idx, rewards[-1]))
+    plt.plot(rewards)
+    plt.pause(0.00001) 
+    
+def OnPolicyTrainingLoop_eps(agent, env, batch_eps=1, view=False):
+    frame_idx    = 0
+    training_rewards = []
+    cum_lengths = []
+    ep_reward = 0
 
-        print(f"Agent Loaded: {filename}")
-
-    def save(self, directory="./saves"):
-        filename = self.name
-
-        torch.save(self.network, '%s/%s_network.pth' % (directory, filename))
-
-
-def main():
-    env = gym.make('CartPole-v1')
-    model = PPO(4, 2, "ppo_cartpole")
-    score = 0.0
-    print_interval = 20
-    step = 0
-
-    for n_epi in range(1000):
-        state = env.reset()
-        done = False
-        while not done:
-            for t in range(T_horizon):
-                action = model.act(state)
-                next_state, reward, done, info = env.step(action)
-
-                model.replay_buffer.add(state, action, next_state, reward/100, done)
-                # model.replay_buffer.add(state, action, next_state, reward, done)
+    while frame_idx < 50000:
+        for ep in range(batch_eps):
+            state, done = env.reset(), False
+            while not done:
+                action = agent.act(state)
+                next_state, reward, done, _ = env.step(action)
+                agent.replay_buffer.add(state, action, next_state, reward/100, done)
+        
+                ep_reward += reward
                 state = next_state
+                frame_idx += 1
 
-                score += reward
-                step += 1
-                if done:
-                    break
+                if frame_idx % 1000 == 0 and view:
+                    plot(frame_idx, training_rewards)
+        
+            print(f"{frame_idx} -> Episode reward: ", ep_reward)
+            training_rewards.append(ep_reward)
+            cum_lengths.append(frame_idx)
+            ep_reward = 0
+    
+        agent.train()
 
-            model.train()
+    return cum_lengths, training_rewards
 
-        if n_epi%print_interval==0 and n_epi!=0:
-            print(f"Step: {step} -> # of episode :{n_epi}, avg score : {score/print_interval:.1f}")
-            score = 0.0
 
-    env.close()
+def test_ppo(): 
+    env_name = "CartPole-v1"
+    env = gym.make(env_name)
 
-if __name__ == '__main__':
-    main()
+    state_dim  = env.observation_space.shape[0]
+    n_acts = env.action_space.n
+    agent = PPO(state_dim, n_acts)
+    
+    OnPolicyTrainingLoop_eps(agent, env, 5, view=True)
+    
+if __name__ == "__main__":
+    test_ppo()
