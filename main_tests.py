@@ -61,7 +61,7 @@ def test_dqn():
     n_acts = env.action_space.n
     agent = DQN(state_dim, n_acts)
     
-    OffPolicyTrainingLoop(agent, env)
+    OffPolicyTrainingLoop(agent, env, 15000)
      
 def test_a2c_ent():
     env_name = "CartPole-v1"

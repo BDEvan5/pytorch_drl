@@ -67,7 +67,6 @@ class DoubleQNet(nn.Module):
         q = self.fc_out(x3)
         return q
 
-hidden_size = 400
 class QNetworkDQN(nn.Module):
     def __init__(self, obs_space, action_space):
         super(QNetworkDQN, self).__init__()
@@ -81,13 +80,11 @@ class QNetworkDQN(nn.Module):
         x = self.fc3(x)
         return x
 
-#Hyper params:
-hidden_size = 400
 class SingleActor(nn.Module):
     def __init__(self, obs_space, action_space):
         super(SingleActor, self).__init__()
-        self.fc1 = nn.Linear(obs_space, hidden_size)
-        self.fc_pi = nn.Linear(hidden_size, action_space)
+        self.fc1 = nn.Linear(obs_space, NN_LAYER_1)
+        self.fc_pi = nn.Linear(NN_LAYER_1, action_space)
 
     def pi(self, x, softmax_dim = 0):
         x = F.relu(self.fc1(x))
@@ -100,8 +97,8 @@ class SingleActor(nn.Module):
 class SingleVNet(nn.Module):
     def __init__(self, obs_space):
         super(SingleVNet, self).__init__()
-        self.fc1 = nn.Linear(obs_space, hidden_size)
-        self.fc_v  = nn.Linear(hidden_size, 1)
+        self.fc1 = nn.Linear(obs_space, NN_LAYER_1)
+        self.fc_v  = nn.Linear(NN_LAYER_1, 1)
 
     def v(self, x):
         x = F.relu(self.fc1(x))

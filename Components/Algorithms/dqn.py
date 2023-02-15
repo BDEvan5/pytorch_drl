@@ -39,26 +39,22 @@ class DQN:
             return action
         
     def train(self):
-        n_train = 1
-        for i in range(n_train):
-            if self.memory.size() < BATCH_SIZE:
-                return
-            state, action, next_state, reward, done = self.memory.sample(BATCH_SIZE)
-            action = action.type(torch.int64)
-
-            next_values = self.target.forward(next_state)
-            max_vals = torch.max(next_values, dim=1)[0].reshape((BATCH_SIZE, 1))
-            q_target = reward + GAMMA * max_vals * done
-            q_vals = self.model.forward(state)
-            current_q_a = q_vals.gather(1, action)
-            loss = torch.nn.functional.mse_loss(current_q_a, q_target.detach())
-
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
+        if self.memory.size() < BATCH_SIZE: return
+        state, action, next_state, reward, done = self.memory.sample(BATCH_SIZE)
+        
+        next_values = self.target.forward(next_state)
+        max_vals = torch.max(next_values, dim=1)[0].reshape((BATCH_SIZE, 1))
+        q_target = reward + GAMMA * max_vals * done
+        q_vals = self.model.forward(state)
+        current_q_a = q_vals.gather(1, action.type(torch.int64))
+        
+        loss = torch.nn.functional.mse_loss(current_q_a, q_target.detach())
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
 
         self.update_steps += 1
-        if self.update_steps % 100 == 1: # every 20 eps or so
+        if self.update_steps % 100 == 1: 
             self.target.load_state_dict(self.model.state_dict())
         if self.update_steps % 12 == 1:
             self.exploration_rate *= EXPLORATION_DECAY 
