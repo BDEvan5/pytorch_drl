@@ -1,6 +1,7 @@
 from Components.Algorithms.ddpg import DDPG
 from Components.Algorithms.sac import SAC
 from Components.Algorithms.td3 import TD3
+from Components.Algorithms.pg import PolicyGradient
 from Components.Algorithms.a2c import A2C
 from Components.Algorithms.dqn import DQN
 from Components.Algorithms.a2c_ent import A2C_ent
@@ -53,6 +54,17 @@ def test_a2c():
     
     OnPolicyTrainingLoop(agent, env, num_steps)
      
+def test_pg():
+    env_name = "CartPole-v1"
+    env = gym.make(env_name)
+    num_steps = 100
+
+    state_dim  = env.observation_space.shape[0]
+    n_acts = env.action_space.n
+    agent = PolicyGradient(state_dim, n_acts, num_steps)
+    
+    OnPolicyTrainingLoop(agent, env, num_steps)
+     
 def test_dqn():
     env_name = "CartPole-v1"
     env = gym.make(env_name)
@@ -94,7 +106,8 @@ if __name__ == '__main__':
     # test_td3()
     # test_sac()
     
-    test_dqn()
+    # test_dqn()
+    test_pg()
     # test_a2c()
     # test_ppo()
     # test_a2c_ent()

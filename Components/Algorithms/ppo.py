@@ -38,7 +38,7 @@ class PPO:
         return a
     
     def calculate_advantage(self, delta):
-        #ToDo: I am not fully sure what this is doing.... I think it is combining reward to go and advantages but I must study it.
+        #Generalised Advantage Estimation
         advantage_lst = []
         advantage = 0.0
         for delta_t in delta[::-1]:

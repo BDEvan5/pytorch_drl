@@ -9,25 +9,25 @@ from torch.distributions import Categorical
 import matplotlib.pyplot as plt
 
 #Hyper params:
-# hidden_size = 256
-hidden_size = 400
+NN_LAYER_1 = 400
 lr          = 3e-4
 num_steps   = 100
 
 
-class Actor(nn.Module):
+class SingleActor(nn.Module):
     def __init__(self, obs_space, action_space):
-        super(Actor, self).__init__()
-        self.fc1 = nn.Linear(obs_space, hidden_size)
-        self.fc_pi = nn.Linear(hidden_size, action_space)
+        super(SingleActor, self).__init__()
+        self.fc1 = nn.Linear(obs_space, NN_LAYER_1)
+        self.fc_pi = nn.Linear(NN_LAYER_1, action_space)
 
     def pi(self, x, softmax_dim = 0):
         x = F.relu(self.fc1(x))
         x = self.fc_pi(x)
-        prob = F.softmax(x, dim=softmax_dim)
-        dist  = Categorical(prob)
+        probs = F.softmax(x, dim=softmax_dim)
         
-        return dist
+        return probs
+    
+
    
 class BufferPG:
     def __init__(self):
@@ -57,7 +57,7 @@ class BufferPG:
     
 class PolicyGradient:
     def __init__(self, num_inputs, num_outputs) -> None:
-        self.actor = Actor(num_inputs, num_outputs)
+        self.actor = SingleActor(num_inputs, num_outputs)
         self.optimizer = optim.Adam(list(self.actor.parameters()), lr=lr)
         self.buffer = BufferPG()
         
