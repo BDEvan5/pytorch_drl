@@ -17,7 +17,7 @@ T_horizon     = 100
 
 
 class PPO:
-    def __init__(self, state_dim, action_dim, num_steps):
+    def __init__(self, state_dim, action_dim):
         self.action_dim = action_dim
         self.state_dim = state_dim
         
@@ -28,7 +28,6 @@ class PPO:
         self.critic = SingleVNet(self.state_dim)
         self.optimizer = optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=learning_rate)
         
-        # maximum number of steps to run the environment for
         self.buffer = OnPolicyBuffer(state_dim, 10000)
         
     def act(self, obs):
@@ -38,15 +37,14 @@ class PPO:
 
         return a
     
-    def calculate_advantage(self, delta):
-        #Generalised Advantage Estimation
+    def generalised_advantage_estimation(self, delta):
         advantage_lst = []
         advantage = 0.0
         for delta_t in delta[::-1]:
             advantage = gamma * lmbda * advantage + delta_t[0]
             advantage_lst.append([advantage])
         advantage_lst.reverse()
-        advantage = torch.tensor(advantage_lst, dtype=torch.float)
+        advantage = torch.FloatTensor(advantage_lst)
             
         return advantage
             
@@ -54,23 +52,25 @@ class PPO:
         if self.buffer.ptr < T_horizon:
             return
 
-        s, a, s_prime, r, done_mask = self.buffer.make_data_batch()
+        states, actions, next_states, rewards, done_masks = self.buffer.make_data_batch()
 
         for i in range(K_epoch):
-            td_target = r + gamma * self.critic.v(s_prime) * done_mask
-            delta = td_target - self.critic.v(s)
+            td_target = rewards + gamma * self.critic.v(next_states) * done_masks
+            delta = td_target - self.critic.v(states)
             delta = delta.detach().numpy()
 
-            advantage = self.calculate_advantage(delta)
+            advantage = self.generalised_advantage_estimation(delta)
 
-            pi = self.actor.pi(s, softmax_dim=1)
-            pi_a = pi.gather(1,a)
-            prob_a = pi_a.clone().detach()
-            ratio = torch.exp(torch.log(pi_a) - torch.log(prob_a))  # a/b == exp(log(a)-log(b))
+            probs = self.actor.pi(states, softmax_dim=1)
+            probs_for_actions = probs.gather(1,actions)
+            # cloning and calling detatch() is how the surrogate objective calculated. Calling detach() on a tensor removes it from the gradient calculation
+            prob_a = probs_for_actions.clone().detach()
+            ratio = torch.exp(torch.log(probs_for_actions) - torch.log(prob_a))  # a/b == exp(log(a)-log(b))
 
-            surr1 = ratio * advantage
-            surr2 = torch.clamp(ratio, 1-eps_clip, 1+eps_clip) * advantage
-            loss = -torch.min(surr1, surr2) + F.smooth_l1_loss(self.critic.v(s) , td_target.detach())
+            # implementing the clipped surrogate objective
+            surrogate_1 = ratio * advantage
+            surrogate_2 = torch.clamp(ratio, 1-eps_clip, 1+eps_clip) * advantage
+            loss = -torch.min(surrogate_1, surrogate_2) + F.smooth_l1_loss(self.critic.v(states) , td_target.detach())
 
             self.optimizer.zero_grad()
             loss.mean().backward()

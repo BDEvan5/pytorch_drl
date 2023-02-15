@@ -14,6 +14,62 @@ import gym
 import utils
 
 
+     
+def test_dqn():
+    env_name = "CartPole-v1"
+    env = gym.make(env_name)
+
+    state_dim  = env.observation_space.shape[0]
+    n_acts = env.action_space.n
+    agent = DQN(state_dim, n_acts)
+    
+    OffPolicyTrainingLoop(agent, env, 15000)
+     
+def test_pg():
+    env_name = "CartPole-v1"
+    env = gym.make(env_name)
+    num_steps = 100
+
+    state_dim  = env.observation_space.shape[0]
+    n_acts = env.action_space.n
+    agent = PolicyGradient(state_dim, n_acts, num_steps)
+    
+    OnPolicyTrainingLoop_eps(agent, env, 1, view=True)
+
+
+def test_a2c():
+    env_name = "CartPole-v1"
+    env = gym.make(env_name)
+    num_steps = 100
+
+    state_dim  = env.observation_space.shape[0]
+    n_acts = env.action_space.n
+    agent = A2C(state_dim, n_acts, num_steps)
+    
+    OnPolicyTrainingLoop_eps(agent, env, 1, view=True)
+     
+
+def test_a2c_ent():
+    env_name = "CartPole-v1"
+    env = gym.make(env_name)
+    num_steps = 100
+
+    state_dim  = env.observation_space.shape[0]
+    n_acts = env.action_space.n
+    agent = A2C_ent(state_dim, n_acts, num_steps)
+    
+    OnPolicyTrainingLoop_eps(agent, env, 1, view=True)
+       
+def test_ppo(): 
+    env_name = "CartPole-v1"
+    env = gym.make(env_name)
+
+    state_dim  = env.observation_space.shape[0]
+    n_acts = env.action_space.n
+    agent = PPO(state_dim, n_acts, 100)
+    
+    OnPolicyTrainingLoop_eps(agent, env, 5, view=True)
+    
 
 
 def test_ddpg():
@@ -43,73 +99,19 @@ def test_sac():
     OffPolicyTrainingLoop(agent, env)
     
     
-def test_a2c():
-    env_name = "CartPole-v1"
-    env = gym.make(env_name)
-    num_steps = 100
-
-    state_dim  = env.observation_space.shape[0]
-    n_acts = env.action_space.n
-    agent = A2C(state_dim, n_acts, num_steps)
-    
-    OnPolicyTrainingLoop(agent, env, num_steps)
-     
-def test_pg():
-    env_name = "CartPole-v1"
-    env = gym.make(env_name)
-    num_steps = 100
-
-    state_dim  = env.observation_space.shape[0]
-    n_acts = env.action_space.n
-    agent = PolicyGradient(state_dim, n_acts, num_steps)
-    
-    OnPolicyTrainingLoop(agent, env, num_steps)
-     
-def test_dqn():
-    env_name = "CartPole-v1"
-    env = gym.make(env_name)
-
-    state_dim  = env.observation_space.shape[0]
-    n_acts = env.action_space.n
-    agent = DQN(state_dim, n_acts)
-    
-    OffPolicyTrainingLoop(agent, env, 15000)
-     
-def test_a2c_ent():
-    env_name = "CartPole-v1"
-    env = gym.make(env_name)
-    num_steps = 100
-
-    state_dim  = env.observation_space.shape[0]
-    n_acts = env.action_space.n
-    agent = A2C_ent(state_dim, n_acts, num_steps)
-    
-    OnPolicyTrainingLoop(agent, env, num_steps)
-       
-def test_ppo(): 
-    env_name = "CartPole-v1"
-    env = gym.make(env_name)
-    # num_steps = 100
-
-    state_dim  = env.observation_space.shape[0]
-    n_acts = env.action_space.n
-    agent = PPO(state_dim, n_acts, 100)
-    
-    OnPolicyTrainingLoop_eps(agent, env, 5, view=True)
-    
-
     
     
     
 if __name__ == '__main__':
+    # test_dqn()
+    # test_pg()
+    # test_a2c()
+    # test_a2c_ent()
+    test_ppo()
+    
     # test_ddpg()
     # test_td3()
     # test_sac()
     
-    # test_dqn()
-    # test_pg()
-    # test_a2c()
-    test_ppo()
-    # test_a2c_ent()
     
         

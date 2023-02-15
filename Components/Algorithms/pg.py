@@ -11,14 +11,13 @@ class PolicyGradient:
     def __init__(self, state_dim, action_dim, n_steps) -> None:
         self.actor = SingleActor(state_dim, action_dim)
         self.optimizer = optim.Adam(list(self.actor.parameters()), lr=lr)
-        self.buffer = OnPolicyBuffer(state_dim, n_steps)
+        self.buffer = OnPolicyBuffer(state_dim, 10000)
         
-    def compute_rewards_to_go(self, next_value=None):
-        # R = next_value
+    def compute_rewards_to_go(self, rewards, done_masks):
         R = 0
         returns = []
-        for step in reversed(range(len(self.buffer.rewards))):
-            R = torch.FloatTensor(self.buffer.rewards[step]) + gamma * R * torch.FloatTensor(self.buffer.done_masks[step])
+        for step in reversed(range(len(rewards))):
+            R = rewards[step] + gamma * R * done_masks[step]
             returns.insert(0, R)
             
         return returns
@@ -27,18 +26,18 @@ class PolicyGradient:
         state = torch.FloatTensor(state)
         probs = self.actor.pi(state)
         dist = torch.distributions.Categorical(probs)
-        
         action = dist.sample()
-        # log_prob = dist.log_prob(action)
 
         return action.numpy()
         
-    def train(self, next_state):
-        returns = self.compute_rewards_to_go()
+    def train(self, next_state=None):
+        states, actions, next_states, rewards, done_masks = self.buffer.make_data_batch()
+        
+        returns = self.compute_rewards_to_go(rewards, done_masks)
         returns   = torch.cat(returns).detach()
         
-        probs = self.actor.pi(torch.FloatTensor(self.buffer.states), softmax_dim=1)
-        probs = probs.gather(1, torch.IntTensor(self.buffer.actions).long())
+        probs = self.actor.pi(states, softmax_dim=1)
+        probs = probs.gather(1, actions.long())
         log_probs = torch.log(probs)[:, 0]
         
         actor_loss  = -(log_probs * returns.detach()).mean()
