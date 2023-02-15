@@ -28,7 +28,8 @@ class PPO:
         self.critic = SingleVNet(self.state_dim)
         self.optimizer = optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=learning_rate)
         
-        self.buffer = OnPolicyBuffer(state_dim, num_steps*2)
+        # maximum number of steps to run the environment for
+        self.buffer = OnPolicyBuffer(state_dim, 10000)
         
     def act(self, obs):
         prob = self.actor.pi(torch.from_numpy(obs).float())
@@ -49,7 +50,7 @@ class PPO:
             
         return advantage
             
-    def train(self, _):
+    def train(self, next_state=None):
         if self.buffer.ptr < T_horizon:
             return
 
