@@ -1,19 +1,18 @@
 import torch
 import torch.optim as optim
 
-from Discrete.Networks import Actor, Critic
-from Discrete.OnPolicyBuffer import OnPolicyBuffer
+from Components.Networks import SingleActor, SingleVNet
+from Components.ReplayBuffers import OnPolicyBuffer
 
 lr          = 3e-4
 gamma=0.99
 
 
-class A2C_ent:
+class A2C:
     def __init__(self, state_dim, n_acts, num_steps) -> None:
-        self.actor = Actor(state_dim, n_acts)
-        self.critic = Critic(state_dim)
+        self.actor = SingleActor(state_dim, n_acts)
+        self.critic = SingleVNet(state_dim)
         self.optimizer = optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=lr)
-        self.entropy = 0
         self.buffer = OnPolicyBuffer(state_dim, num_steps)
         
     def act(self, state):
@@ -21,7 +20,6 @@ class A2C_ent:
         probs = self.actor.pi(state)
         dist = torch.distributions.Categorical(probs)
         action = dist.sample()
-        self.entropy += dist.entropy().mean()
 
         return action.numpy()
         
@@ -53,13 +51,12 @@ class A2C_ent:
         actor_loss  = -(log_probs * advantage.detach()).mean()
         critic_loss = advantage.pow(2).mean()
 
-        loss = actor_loss + 0.5 * critic_loss - 0.001 * self.entropy
+        loss = actor_loss + 0.5 * critic_loss 
 
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
         
-        self.entropy = 0
         self.buffer.reset()
     
     

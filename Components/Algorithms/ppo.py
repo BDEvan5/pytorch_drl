@@ -2,8 +2,8 @@ import torch
 import torch.optim as optim
 import torch.nn.functional as F
 
-from Discrete.Networks import Actor, Critic
-from Discrete.OnPolicyBuffer import OnPolicyBuffer
+from Components.Networks import SingleActor, SingleVNet
+from Components.ReplayBuffers import OnPolicyBuffer
 
 
 
@@ -24,8 +24,8 @@ class PPO:
         self.network = None
         self.optimizer = None
 
-        self.actor = Actor(self.state_dim, self.action_dim)
-        self.critic = Critic(self.state_dim)
+        self.actor = SingleActor(self.state_dim, self.action_dim)
+        self.critic = SingleVNet(self.state_dim)
         self.optimizer = optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=learning_rate)
         
         self.buffer = OnPolicyBuffer(state_dim, num_steps*2)

@@ -1,6 +1,6 @@
-from Continuous.Networks import PolicyNet, CriticNet
-from Continuous.ReplayBuffers import ReplayBuffer, SmartBuffer
-from Continuous.Noises import OrnsteinUhlenbeckNoise
+from Components.Networks import DoublePolicyNet, DoubleQNet
+from Components.ReplayBuffers import OffPolicyBuffer
+from Components.Noises import OrnsteinUhlenbeckNoise
 from utils import soft_update
 
 import torch.optim as optim
@@ -20,14 +20,14 @@ class DDPG:
     def __init__(self, state_dim, action_dim, action_scale):
         self.action_scale = action_scale
         
-        self.memory = SmartBuffer(state_dim, action_dim)
+        self.memory = OffPolicyBuffer(state_dim, action_dim)
 
-        self.critic = CriticNet(state_dim, action_dim)
-        self.critic_target = CriticNet(state_dim, action_dim)
+        self.critic = DoubleQNet(state_dim, action_dim)
+        self.critic_target = DoubleQNet(state_dim, action_dim)
         self.critic_target.load_state_dict(self.critic.state_dict())
         
-        self.actor = PolicyNet(state_dim, action_dim, action_scale)
-        self.actor_target = PolicyNet(state_dim, action_dim, action_scale)
+        self.actor = DoublePolicyNet(state_dim, action_dim, action_scale)
+        self.actor_target = DoublePolicyNet(state_dim, action_dim, action_scale)
         self.actor_target.load_state_dict(self.actor.state_dict())
 
         self.mu_optimizer = optim.Adam(self.actor.parameters(), lr=lr_mu)

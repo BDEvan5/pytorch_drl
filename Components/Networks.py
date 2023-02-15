@@ -6,9 +6,9 @@ import torch.nn.functional as F
 NN_LAYER_1 = 400
 NN_LAYER_2 = 300
 
-class PolicyNet(nn.Module):
+class DoublePolicyNet(nn.Module):
     def __init__(self, state_dim, act_dim, action_scale):
-        super(PolicyNet, self).__init__()
+        super(DoublePolicyNet, self).__init__()
         
         self.fc1 = nn.Linear(state_dim, NN_LAYER_1)
         self.fc2 = nn.Linear(NN_LAYER_1, NN_LAYER_2)
@@ -52,9 +52,9 @@ class PolicyNetworkSAC(nn.Module):
         return action, log_prob
    
 
-class CriticNet(nn.Module):
+class DoubleQNet(nn.Module):
     def __init__(self, state_dim, act_dim):
-        super(CriticNet, self).__init__()
+        super(DoubleQNet, self).__init__()
         
         self.fc1 = nn.Linear(state_dim + act_dim, NN_LAYER_1)
         self.fc2 = nn.Linear(NN_LAYER_1, NN_LAYER_2)
@@ -67,6 +67,47 @@ class CriticNet(nn.Module):
         q = self.fc_out(x3)
         return q
 
+hidden_size = 400
+class QNetworkDQN(nn.Module):
+    def __init__(self, obs_space, action_space):
+        super(QNetworkDQN, self).__init__()
+        self.fc1 = nn.Linear(obs_space, NN_LAYER_1)
+        self.fc2 = nn.Linear(NN_LAYER_1, NN_LAYER_2)
+        self.fc3 = nn.Linear(NN_LAYER_2, action_space)
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
+
+#Hyper params:
+hidden_size = 400
+class SingleActor(nn.Module):
+    def __init__(self, obs_space, action_space):
+        super(SingleActor, self).__init__()
+        self.fc1 = nn.Linear(obs_space, hidden_size)
+        self.fc_pi = nn.Linear(hidden_size, action_space)
+
+    def pi(self, x, softmax_dim = 0):
+        x = F.relu(self.fc1(x))
+        x = self.fc_pi(x)
+        probs = F.softmax(x, dim=softmax_dim)
+        
+        return probs
+        
+    
+class SingleVNet(nn.Module):
+    def __init__(self, obs_space):
+        super(SingleVNet, self).__init__()
+        self.fc1 = nn.Linear(obs_space, hidden_size)
+        self.fc_v  = nn.Linear(hidden_size, 1)
+
+    def v(self, x):
+        x = F.relu(self.fc1(x))
+        v = self.fc_v(x)
+        return v
+    
 
 if __name__ == "__main__":
     print("Hello World!")

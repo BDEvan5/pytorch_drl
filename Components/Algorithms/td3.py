@@ -2,8 +2,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from Continuous.Networks import PolicyNet, CriticNet
-from Continuous.ReplayBuffers import SmartBuffer
+from Components.Networks import DoublePolicyNet, DoubleQNet
+from Components.ReplayBuffers import OffPolicyBuffer
 
 # hyper parameters
 BATCH_SIZE = 100
@@ -21,20 +21,20 @@ class TD3(object):
         self.action_scale = action_scale
         self.act_dim = action_dim
         
-        self.actor = PolicyNet(state_dim, action_dim, action_scale)
-        self.actor_target = PolicyNet(state_dim, action_dim, action_scale)
+        self.actor = DoublePolicyNet(state_dim, action_dim, action_scale)
+        self.actor_target = DoublePolicyNet(state_dim, action_dim, action_scale)
         self.actor_target.load_state_dict(self.actor.state_dict())
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=1e-3)
 
-        self.critic_1 = CriticNet(state_dim, action_dim)
-        self.critic_target_1 = CriticNet(state_dim, action_dim)
+        self.critic_1 = DoubleQNet(state_dim, action_dim)
+        self.critic_target_1 = DoubleQNet(state_dim, action_dim)
         self.critic_target_1.load_state_dict(self.critic_1.state_dict())
-        self.critic_2 = CriticNet(state_dim, action_dim)
-        self.critic_target_2 = CriticNet(state_dim, action_dim)
+        self.critic_2 = DoubleQNet(state_dim, action_dim)
+        self.critic_target_2 = DoubleQNet(state_dim, action_dim)
         self.critic_target_2.load_state_dict(self.critic_2.state_dict())
         self.critic_optimizer = torch.optim.Adam(list(self.critic_1.parameters()) + list(self.critic_2.parameters()), lr=1e-3)
 
-        self.memory = SmartBuffer(state_dim, action_dim)
+        self.memory = OffPolicyBuffer(state_dim, action_dim)
 
     def act(self, state, noise=EXPLORE_NOISE):
         state = torch.FloatTensor(state.reshape(1, -1))

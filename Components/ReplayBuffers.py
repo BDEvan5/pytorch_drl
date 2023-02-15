@@ -1,43 +1,10 @@
-import collections
-buffer_limit = 50000
-import random
 import torch
 import numpy as np
 
 
-
-class ReplayBuffer():
-    def __init__(self):
-        self.buffer = collections.deque(maxlen=buffer_limit)
-
-    def put(self, transition):
-        self.buffer.append(transition)
-    
-    def sample(self, n):
-        mini_batch = random.sample(self.buffer, n)
-        s_lst, a_lst, r_lst, s_prime_lst, done_mask_lst = [], [], [], [], []
-
-        for transition in mini_batch:
-            s, a, s_prime, r, done = transition
-            s_lst.append(s)
-            a_lst.append(a)
-            s_prime_lst.append(s_prime)
-            r_lst.append([r])
-            done_mask = 0.0 if done else 1.0 
-            done_mask_lst.append([done_mask])
-        
-        return torch.tensor(s_lst, dtype=torch.float), \
-                torch.tensor(a_lst, dtype=torch.float), \
-                torch.tensor(s_prime_lst, dtype=torch.float), \
-                torch.tensor(r_lst, dtype=torch.float), \
-                torch.tensor(done_mask_lst, dtype=torch.float)
-    
-    def size(self):
-        return len(self.buffer)
-
 MEMORY_SIZE = 1000000
 
-class SmartBuffer(object):
+class OffPolicyBuffer(object):
     def __init__(self, state_dim, action_dim):     
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -85,4 +52,43 @@ class SmartBuffer(object):
 
     def size(self):
         return self.ptr
+   
+   
+class OnPolicyBuffer:
+    def __init__(self, state_dim, length):
+        self.state_dim = state_dim
+        self.length = length
+        self.reset()
+        
+        self.ptr = 0
+        
+    def add(self, state, action, next_state, reward, done):
+        self.states[self.ptr] = state
+        self.actions[self.ptr] = int(action)
+        self.next_states[self.ptr] = next_state
+        self.rewards[self.ptr] = reward
+        self.done_masks[self.ptr] = 1 - done
+
+        self.ptr += 1
+    
+    def reset(self):
+        self.states = np.zeros((self.length, self.state_dim))
+        self.actions = np.zeros((self.length, 1), dtype=np.int64)
+        self.next_states = np.zeros((self.length, self.state_dim))
+        self.rewards = np.zeros((self.length, 1))
+        self.done_masks = np.zeros((self.length, 1))
+        
+        self.ptr = 0
+   
+    def make_data_batch(self):
+        states = torch.FloatTensor(self.states[0:self.ptr])
+        actions = torch.LongTensor(self.actions[0:self.ptr])
+        next_states = torch.FloatTensor(self.next_states[0:self.ptr])
+        rewards = torch.FloatTensor(self.rewards[0:self.ptr])
+        dones = torch.FloatTensor(self.done_masks[0:self.ptr])
+        
+        self.reset()
+        
+        return states, actions, next_states, rewards, dones
+
 

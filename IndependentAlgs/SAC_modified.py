@@ -79,7 +79,7 @@ class CriticNetwork(nn.Module):
         return x
     
     
-class SmartBuffer(object):
+class OffPolicyBuffer(object):
     def __init__(self, state_dim, action_dim):     
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -142,7 +142,7 @@ class NormalizedActions(gym.ActionWrapper):
     
 class SAC(object):
     def __init__(self, state_dim, action_dim):
-        self.memory = SmartBuffer(state_dim, action_dim)
+        self.memory = OffPolicyBuffer(state_dim, action_dim)
 
         self.soft_q_net1 = CriticNetwork(state_dim, action_dim)
         self.soft_q_net2 = CriticNetwork(state_dim, action_dim)

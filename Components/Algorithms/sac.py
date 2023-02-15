@@ -14,18 +14,18 @@ LR = 1e-3
 torch.manual_seed(SEED)
 np.random.seed(SEED)
    
-from Continuous.ReplayBuffers import SmartBuffer
-from Continuous.Networks import PolicyNetworkSAC, CriticNet
+from Components.ReplayBuffers import OffPolicyBuffer
+from Components.Networks import PolicyNetworkSAC, DoubleQNet
 
 
 class SAC(object):
     def __init__(self, state_dim, action_dim):
-        self.memory = SmartBuffer(state_dim, action_dim)
+        self.memory = OffPolicyBuffer(state_dim, action_dim)
 
-        self.soft_q_net1 = CriticNet(state_dim, action_dim)
-        self.soft_q_net2 = CriticNet(state_dim, action_dim)
-        self.target_soft_q_net1 = CriticNet(state_dim, action_dim)
-        self.target_soft_q_net2 = CriticNet(state_dim, action_dim)
+        self.soft_q_net1 = DoubleQNet(state_dim, action_dim)
+        self.soft_q_net2 = DoubleQNet(state_dim, action_dim)
+        self.target_soft_q_net1 = DoubleQNet(state_dim, action_dim)
+        self.target_soft_q_net2 = DoubleQNet(state_dim, action_dim)
         self.target_soft_q_net1.load_state_dict(self.soft_q_net1.state_dict())
         self.target_soft_q_net2.load_state_dict(self.soft_q_net2.state_dict())
         
