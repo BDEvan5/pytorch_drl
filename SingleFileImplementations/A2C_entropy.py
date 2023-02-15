@@ -75,7 +75,7 @@ class A2C:
         self.critic = Critic(num_inputs)
         self.optimizer = optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=lr)
         self.entropy = 0
-        self.buffer = BufferA2C()
+        self.replay_buffer = BufferA2C()
         
     def act(self, state):
         state = torch.FloatTensor(state)
@@ -92,11 +92,11 @@ class A2C:
     def train(self, next_state):
         next_state = torch.FloatTensor(next_state)
         next_value = self.critic.v(next_state)
-        returns = self.buffer.compute_rewards_to_go(next_value)
+        returns = self.replay_buffer.compute_rewards_to_go(next_value)
 
-        log_probs = torch.stack(self.buffer.log_probs)
+        log_probs = torch.stack(self.replay_buffer.log_probs)
         returns   = torch.cat(returns).detach()
-        values    = torch.cat(self.buffer.values)
+        values    = torch.cat(self.replay_buffer.values)
         
         advantage = returns - values
 
@@ -110,7 +110,7 @@ class A2C:
         self.optimizer.step()
         
         self.entropy = 0
-        self.buffer.reset()
+        self.replay_buffer.reset()
     
     
 def plot(frame_idx, rewards):
@@ -139,7 +139,7 @@ def test_a2c():
 
             next_state, reward, done, _ = env.step(action)
     
-            agent.buffer.add(log_prob, value, reward, 1 - done)
+            agent.replay_buffer.add(log_prob, value, reward, 1 - done)
             ep_reward += reward
         
             state = next_state
