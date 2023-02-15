@@ -1,16 +1,4 @@
-<<<<<<< HEAD:main.py
-import gym 
 
-from Discrete.TrainingLoop import DiscreteTrainingLoop
-from Discrete.Algorithms.a2c import A2C
-from Discrete.Algorithms.a2c_ent import A2C_ent
-import matplotlib.pyplot as plt
-import numpy as np
-from Discrete.Algorithms.ppo import PPO
-    
-    
-def test_a2c():
-=======
 from Components.Algorithms.ddpg import DDPG
 from Components.Algorithms.sac import SAC
 from Components.Algorithms.td3 import TD3
@@ -19,7 +7,7 @@ from Components.Algorithms.a2c import A2C
 from Components.Algorithms.dqn import DQN
 from Components.Algorithms.a2c_ent import A2C_ent
 from Components.Algorithms.ppo import PPO
-from Components.TrainingLoops import OffPolicyTrainingLoop, observe, OnPolicyTrainingLoop, OnPolicyTrainingLoop_eps
+from Components.TrainingLoops import OffPolicyTrainingLoop, observe, OnPolicyTrainingLoop_eps
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -29,7 +17,6 @@ import utils
 
      
 def test_dqn():
->>>>>>> devel:main_tests.py
     env_name = "CartPole-v1"
     env = gym.make(env_name)
 
@@ -48,21 +35,6 @@ def test_pg():
     n_acts = env.action_space.n
     agent = PolicyGradient(state_dim, n_acts, num_steps)
     
-<<<<<<< HEAD:main.py
-
-=======
-    OnPolicyTrainingLoop_eps(agent, env, 1, view=True)
-
-
-def test_a2c():
-    env_name = "CartPole-v1"
-    env = gym.make(env_name)
-    num_steps = 100
-
-    state_dim  = env.observation_space.shape[0]
-    n_acts = env.action_space.n
-    agent = A2C(state_dim, n_acts, num_steps)
->>>>>>> devel:main_tests.py
     
     OnPolicyTrainingLoop_eps(agent, env, 1, view=True)
      
@@ -121,11 +93,6 @@ def test_sac():
     
     
 if __name__ == '__main__':
-<<<<<<< HEAD:main.py
-    
-    # test_a2c()
-    # test_a2c_ent()
-=======
     # test_dqn()
     # test_pg()
     # test_a2c()
@@ -136,6 +103,5 @@ if __name__ == '__main__':
     # test_td3()
     test_sac()
     
->>>>>>> devel:main_tests.py
     
         
