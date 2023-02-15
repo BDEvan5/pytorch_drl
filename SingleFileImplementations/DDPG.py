@@ -1,82 +1,56 @@
 import gym
-import random
-import collections
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import matplotlib.pyplot as plt
 
 #Hyperparameters
 lr_mu        = 0.0005
 lr_q         = 0.001
 gamma        = 0.99
-batch_size   = 32
+BATCH_SIZE   = 32
 buffer_limit = 50000
 tau          = 0.005 # for target network soft update
+MEMORY_SIZE = 100000
 
-class ReplayBuffer():
-    def __init__(self):
-        self.replay_buffer = collections.deque(maxlen=buffer_limit)
 
-    def put(self, transition):
-        self.replay_buffer.append(transition)
-    
-    def sample(self, n):
-        mini_batch = random.sample(self.replay_buffer, n)
-        s_lst, a_lst, r_lst, s_prime_lst, done_mask_lst = [], [], [], [], []
+NN_LAYER_1 = 400
+NN_LAYER_2 = 300
 
-        for transition in mini_batch:
-            s, a, r, s_prime, done = transition
-            s_lst.append(s)
-            a_lst.append([a])
-            r_lst.append([r])
-            s_prime_lst.append(s_prime)
-            done_mask = 0.0 if done else 1.0 
-            done_mask_lst.append([done_mask])
+class DoubleQNet(nn.Module):
+    def __init__(self, state_dim, act_dim):
+        super(DoubleQNet, self).__init__()
         
-        return torch.tensor(s_lst, dtype=torch.float), torch.tensor(a_lst, dtype=torch.float), \
-                torch.tensor(r_lst, dtype=torch.float), torch.tensor(s_prime_lst, dtype=torch.float), \
-                torch.tensor(done_mask_lst, dtype=torch.float)
-    
-    def size(self):
-        return len(self.replay_buffer)
+        self.fc1 = nn.Linear(state_dim + act_dim, NN_LAYER_1)
+        self.fc2 = nn.Linear(NN_LAYER_1, NN_LAYER_2)
+        self.fc_out = nn.Linear(NN_LAYER_2, 1)
 
-class MuNet(nn.Module):
-    def __init__(self):
-        super(MuNet, self).__init__()
-        self.fc1 = nn.Linear(3, 400)
-        self.fc2 = nn.Linear(400, 300)
-        self.fc_mu = nn.Linear(300, 1)
-        # self.fc1 = nn.Linear(3, 128)
-        # self.fc2 = nn.Linear(128, 64)
-        # self.fc_mu = nn.Linear(64, 1)
+    def forward(self, state, action):
+        x = torch.cat([state, action], 1)
+        x2 = F.relu(self.fc1(x))
+        x3 = F.relu(self.fc2(x2))
+        q = self.fc_out(x3)
+        return q
+    
+    
+class DoublePolicyNet(nn.Module):
+    def __init__(self, state_dim, act_dim, action_scale):
+        super(DoublePolicyNet, self).__init__()
+        
+        self.fc1 = nn.Linear(state_dim, NN_LAYER_1)
+        self.fc2 = nn.Linear(NN_LAYER_1, NN_LAYER_2)
+        self.fc_mu = nn.Linear(NN_LAYER_2, act_dim)
+
+        self.action_scale = action_scale
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-        mu = torch.tanh(self.fc_mu(x))*2 # Multipled by 2 because the action space of the Pendulum-v1 is [-2,2]
+        mu = torch.tanh(self.fc_mu(x)) * self.action_scale
         return mu
 
-class QNet(nn.Module):
-    def __init__(self):
-        super(QNet, self).__init__()
-        self.fc_s = nn.Linear(3, 200)
-        self.fc_a = nn.Linear(1, 200)
-        self.fc_q = nn.Linear(400, 300)
-        self.fc_out = nn.Linear(300,1)
-        # self.fc_s = nn.Linear(3, 64)
-        # self.fc_a = nn.Linear(1,64)
-        # self.fc_q = nn.Linear(128, 32)
-        # self.fc_out = nn.Linear(32,1)
-
-    def forward(self, x, a):
-        h1 = F.relu(self.fc_s(x))
-        h2 = F.relu(self.fc_a(a))
-        cat = torch.cat([h1,h2], dim=1)
-        q = F.relu(self.fc_q(cat))
-        q = self.fc_out(q)
-        return q
 
 class OrnsteinUhlenbeckNoise:
     def __init__(self, mu):
@@ -89,84 +63,150 @@ class OrnsteinUhlenbeckNoise:
                 self.sigma * np.sqrt(self.dt) * np.random.normal(size=self.mu.shape)
         self.x_prev = x
         return x
-    
+
+class OffPolicyBuffer(object):
+    def __init__(self, state_dim, action_dim):     
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+        self.ptr = 0
+
+        self.states = np.empty((MEMORY_SIZE, state_dim))
+        self.actions = np.empty((MEMORY_SIZE, action_dim))
+        self.next_states = np.empty((MEMORY_SIZE, state_dim))
+        self.rewards = np.empty((MEMORY_SIZE, 1))
+        self.dones = np.empty((MEMORY_SIZE, 1))
+
+    def add(self, state, action, next_state, reward, done):
+        self.states[self.ptr] = state
+        self.actions[self.ptr] = action
+        self.next_states[self.ptr] = next_state
+        self.rewards[self.ptr] = reward
+        self.dones[self.ptr] = done
+
+        self.ptr += 1
+        
+        if self.ptr == MEMORY_SIZE: self.ptr = 0
+
+    def sample(self, batch_size):
+        ind = np.random.randint(0, self.ptr-1, size=batch_size)
+        states = np.empty((batch_size, self.state_dim))
+        actions = np.empty((batch_size, self.action_dim))
+        next_states = np.empty((batch_size, self.state_dim))
+        rewards = np.empty((batch_size, 1))
+        dones = np.empty((batch_size, 1))
+
+        for i, j in enumerate(ind): 
+            states[i] = self.states[j]
+            actions[i] = self.actions[j]
+            next_states[i] = self.next_states[j]
+            rewards[i] = self.rewards[j]
+            dones[i] = self.dones[j]
+            
+        states = torch.FloatTensor(states)
+        actions = torch.FloatTensor(actions)
+        next_states = torch.FloatTensor(next_states)
+        rewards = torch.FloatTensor(rewards)
+        dones = torch.FloatTensor(1- dones)
+
+        return states, actions, next_states, rewards, dones
+
+    def size(self):
+        return self.ptr
+   
+
 class DDPG:
-    def __init__(self, input_dim, output_dim):
-        self.replay_buffer = ReplayBuffer()
+    def __init__(self, state_dim, action_dim, action_scale):
+        self.action_scale = action_scale
+        
+        self.replay_buffer = OffPolicyBuffer(state_dim, action_dim)
 
-        self.q, self.q_target = QNet(), QNet()
-        self.q_target.load_state_dict(self.q.state_dict())
-        self.mu, self.mu_target = MuNet(), MuNet()
-        self.mu_target.load_state_dict(self.mu.state_dict())
+        self.critic = DoubleQNet(state_dim, action_dim)
+        self.critic_target = DoubleQNet(state_dim, action_dim)
+        self.critic_target.load_state_dict(self.critic.state_dict())
+        
+        self.actor = DoublePolicyNet(state_dim, action_dim, action_scale)
+        self.actor_target = DoublePolicyNet(state_dim, action_dim, action_scale)
+        self.actor_target.load_state_dict(self.actor.state_dict())
 
-
-        self.mu_optimizer = optim.Adam(self.mu.parameters(), lr=lr_mu)
-        self.q_optimizer  = optim.Adam(self.q.parameters(), lr=lr_q)
+        self.mu_optimizer = optim.Adam(self.actor.parameters(), lr=lr_mu)
+        self.q_optimizer  = optim.Adam(self.critic.parameters(), lr=lr_q)
         self.ou_noise = OrnsteinUhlenbeckNoise(mu=np.zeros(1))
 
     def act(self, state):
-        action = self.mu(torch.from_numpy(state).float()) 
-        action = action.item() + self.ou_noise()[0]
+        action = self.actor(torch.from_numpy(state).float()) * self.action_scale
+        action = action.detach().numpy() + self.ou_noise()
         
         return action
-        
       
     def train(self):
-        if self.replay_buffer.size() < 1000:
-            return
+        if self.replay_buffer.size() < BATCH_SIZE: return
         
-        for i in range(1):
-            s,a,r,s_prime,done_mask  = self.replay_buffer.sample(batch_size)
-            
-            target = r + gamma * self.q_target(s_prime, self.mu_target(s_prime)) * done_mask
-            q_loss = F.smooth_l1_loss(self.q(s,a), target.detach())
-            self.q_optimizer.zero_grad()
-            q_loss.backward()
-            self.q_optimizer.step()
-            
-            mu_loss = -self.q(s,self.mu(s)).mean() # That's all for the policy loss.
-            self.mu_optimizer.zero_grad()
-            mu_loss.backward()
-            self.mu_optimizer.step()
+        states, actions, next_states, rewards, done_masks  = self.replay_buffer.sample(BATCH_SIZE)
         
-            soft_update(self.q, self.q_target)
-            soft_update(self.mu, self.mu_target)
+        target = rewards + gamma * self.critic_target(next_states, self.actor_target(next_states)) * done_masks
+        q_loss = F.smooth_l1_loss(self.critic(states,actions), target.detach())
+        self.q_optimizer.zero_grad()
+        q_loss.backward()
+        self.q_optimizer.step()
+        
+        mu_loss = -self.critic(states,self.actor(states)).mean() 
+        self.mu_optimizer.zero_grad()
+        mu_loss.backward()
+        self.mu_optimizer.step()
+    
+        soft_update(self.critic, self.critic_target, tau)
+        soft_update(self.actor, self.actor_target, tau)
      
+    
         
-def soft_update(net, net_target):
+def soft_update(net, net_target, tau):
     for param_target, param in zip(net_target.parameters(), net.parameters()):
         param_target.data.copy_(param_target.data * (1.0 - tau) + param.data * tau)
     
-def main():
-    env = gym.make('Pendulum-v1')
-    
-    score = 0.0
-    print_interval = 20
-    agent = DDPG(env.observation_space.shape[0], env.action_space.shape[0])
-    steps = 0
-    for n_epi in range(10000):
-        s = env.reset()
-        done = False
-        
-        ep_score = 0
-        while not done:
-            a = agent.act(s)
-            s_prime, r, done, info = env.step([a])
-            steps += 1
-            agent.replay_buffer.put((s,a,r/100.0,s_prime,done))
-            score +=r
-            ep_score += r
-            s = s_prime
-                
-            agent.train()
-        
-        print("Step: {}, Episode :{}, Score : {:.1f}".format(steps, n_epi, ep_score))
-        
-        if n_epi%print_interval==0 and n_epi!=0:
-            print("Step: {}, # of episode :{}, avg score : {:.1f}".format(steps, n_epi, score/print_interval))
-            score = 0.0
 
-    env.close()
+def plot(frame_idx, rewards):
+    plt.figure(1, figsize=(5,5))
+    plt.title('frame %s. reward: %s' % (frame_idx, rewards[-1]))
+    plt.plot(rewards)
+    plt.pause(0.00001) 
+
+def OffPolicyTrainingLoop(agent, env, training_steps=10000, view=True):
+    lengths, rewards = [], []
+    state, done = env.reset(), False
+    ep_score, ep_steps = 0, 0
+    for t in range(1, training_steps):
+        action = agent.act(state)
+        next_state, reward, done, info = env.step(action)
+        
+        done = 0 if ep_steps + 1 == 200 else float(done)
+        agent.replay_buffer.add(state, action, next_state, reward, done)  
+        ep_score += reward
+        ep_steps += 1
+        state = next_state
+        
+        agent.train()
+        
+        if done:
+            lengths.append(ep_steps)
+            rewards.append(ep_score)
+            state, done = env.reset(), False
+            print("Step: {}, Episode :{}, Score : {:.1f}".format(t, len(lengths), ep_score))
+            ep_score, ep_steps = 0, 0
+        
+        
+        if t % 1000 == 0 and view:
+            plot(t, rewards)
+        
+    return lengths, rewards
+
+
+def test_ddpg():
+    env_name = 'Pendulum-v1'
+    env = gym.make(env_name)
+    agent = DDPG(env.observation_space.shape[0], env.action_space.shape[0], 2)
+    
+    OffPolicyTrainingLoop(agent, env, 10000)
+    
 
 if __name__ == '__main__':
-    main()
+    test_ddpg()

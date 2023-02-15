@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import gym
+import matplotlib.pyplot as plt
 import sys
 
 # hyper parameters
@@ -16,239 +17,236 @@ EXPLORE_NOISE = 0.1
 POLICY_FREQUENCY = 2
 POLICY_NOISE = 0.2
 
-class Actor(nn.Module):   
-    def __init__(self, state_dim, action_dim, max_action):
-        super(Actor, self).__init__()
+MEMORY_SIZE = 100000
+NN_LAYER_1 = 400
+NN_LAYER_2 = 300
 
-        self.l1 = nn.Linear(state_dim, 400)
-        self.l2 = nn.Linear(400, 300)
-        self.l3 = nn.Linear(300, action_dim)
+class DoublePolicyNet(nn.Module):
+    def __init__(self, state_dim, act_dim, action_scale):
+        super(DoublePolicyNet, self).__init__()
+        
+        self.fc1 = nn.Linear(state_dim, NN_LAYER_1)
+        self.fc2 = nn.Linear(NN_LAYER_1, NN_LAYER_2)
+        self.fc_mu = nn.Linear(NN_LAYER_2, act_dim)
 
-        self.max_action = max_action
-
+        self.action_scale = action_scale
 
     def forward(self, x):
-        x = F.relu(self.l1(x))
-        x = F.relu(self.l2(x))
-        x = self.max_action * torch.tanh(self.l3(x)) 
-        return x
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        mu = torch.tanh(self.fc_mu(x)) * self.action_scale
+        return mu
+    
+class DoubleQNet(nn.Module):
+    def __init__(self, state_dim, act_dim):
+        super(DoubleQNet, self).__init__()
+        
+        self.fc1 = nn.Linear(state_dim + act_dim, NN_LAYER_1)
+        self.fc2 = nn.Linear(NN_LAYER_1, NN_LAYER_2)
+        self.fc_out = nn.Linear(NN_LAYER_2, 1)
 
-class Critic(nn.Module):
-    def __init__(self, state_dim, action_dim):
-        super(Critic, self).__init__()
-
-        # Q1 architecture
-        self.l1 = nn.Linear(state_dim + action_dim, 400)
-        self.l2 = nn.Linear(400, 300)
-        self.l3 = nn.Linear(300, 1)
-
-        # Q2 architecture
-        self.l4 = nn.Linear(state_dim + action_dim, 400)
-        self.l5 = nn.Linear(400, 300)
-        self.l6 = nn.Linear(300, 1)
+    def forward(self, state, action):
+        x = torch.cat([state, action], 1)
+        x2 = F.relu(self.fc1(x))
+        x3 = F.relu(self.fc2(x2))
+        q = self.fc_out(x3)
+        return q
 
 
-    def forward(self, x, u):
-        xu = torch.cat([x, u], 1)
-
-        x1 = F.relu(self.l1(xu))
-        x1 = F.relu(self.l2(x1))
-        x1 = self.l3(x1)
-
-        x2 = F.relu(self.l4(xu))
-        x2 = F.relu(self.l5(x2))
-        x2 = self.l6(x2)
-        return x1, x2
-
-    def Q1(self, x, u):
-        xu = torch.cat([x, u], 1)
-
-        x1 = F.relu(self.l1(xu))
-        x1 = F.relu(self.l2(x1))
-        x1 = self.l3(x1)
-        return x1
-
-class ReplayBuffer(object):
-    def __init__(self, max_size=1000000):     
-        self.storage = []
-        self.max_size = max_size
+class OffPolicyBuffer(object):
+    def __init__(self, state_dim, action_dim):     
+        self.state_dim = state_dim
+        self.action_dim = action_dim
         self.ptr = 0
 
-    def add(self, data):        
-        if len(self.storage) == self.max_size:
-            self.storage[int(self.ptr)] = data
-            self.ptr = (self.ptr + 1) % self.max_size
-        else:
-            self.storage.append(data)
+        self.states = np.empty((MEMORY_SIZE, state_dim))
+        self.actions = np.empty((MEMORY_SIZE, action_dim))
+        self.next_states = np.empty((MEMORY_SIZE, state_dim))
+        self.rewards = np.empty((MEMORY_SIZE, 1))
+        self.dones = np.empty((MEMORY_SIZE, 1))
+
+    def add(self, state, action, next_state, reward, done):
+        self.states[self.ptr] = state
+        self.actions[self.ptr] = action
+        self.next_states[self.ptr] = next_state
+        self.rewards[self.ptr] = reward
+        self.dones[self.ptr] = done
+
+        self.ptr += 1
+        
+        if self.ptr == MEMORY_SIZE: self.ptr = 0
 
     def sample(self, batch_size):
-        ind = np.random.randint(0, len(self.storage), size=batch_size)
-        states, actions, next_states, rewards, dones = [], [], [], [], []
+        ind = np.random.randint(0, self.ptr-1, size=batch_size)
+        states = np.empty((batch_size, self.state_dim))
+        actions = np.empty((batch_size, self.action_dim))
+        next_states = np.empty((batch_size, self.state_dim))
+        rewards = np.empty((batch_size, 1))
+        dones = np.empty((batch_size, 1))
 
-        for i in ind: 
-            s, a, s_, r, d = self.storage[i]
-            states.append(np.array(s, copy=False))
-            actions.append(np.array(a, copy=False))
-            next_states.append(np.array(s_, copy=False))
-            rewards.append(np.array(r, copy=False))
-            dones.append(np.array(d, copy=False))
+        for i, j in enumerate(ind): 
+            states[i] = self.states[j]
+            actions[i] = self.actions[j]
+            next_states[i] = self.next_states[j]
+            rewards[i] = self.rewards[j]
+            dones[i] = self.dones[j]
+            
+        states = torch.FloatTensor(states)
+        actions = torch.FloatTensor(actions)
+        next_states = torch.FloatTensor(next_states)
+        rewards = torch.FloatTensor(rewards)
+        dones = torch.FloatTensor(1- dones)
 
-        return np.array(states), np.array(actions), np.array(next_states), np.array(rewards).reshape(-1, 1), np.array(dones).reshape(-1, 1)
+        return states, actions, next_states, rewards, dones
 
+    def size(self):
+        return self.ptr
+   
+   
 class TD3(object):
-    def __init__(self, state_dim, action_dim, max_action):
-        self.actor = Actor(state_dim, action_dim, max_action)
-        self.actor_target = Actor(state_dim, action_dim, max_action)
+    def __init__(self, state_dim, action_dim, action_scale):
+        self.action_scale = action_scale
+        self.act_dim = action_dim
+        
+        self.actor = DoublePolicyNet(state_dim, action_dim, action_scale)
+        self.actor_target = DoublePolicyNet(state_dim, action_dim, action_scale)
         self.actor_target.load_state_dict(self.actor.state_dict())
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=1e-3)
 
-        self.critic = Critic(state_dim, action_dim)
-        self.critic_target = Critic(state_dim, action_dim)
-        self.critic_target.load_state_dict(self.critic.state_dict())
-        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=1e-3)
+        self.critic_1 = DoubleQNet(state_dim, action_dim)
+        self.critic_target_1 = DoubleQNet(state_dim, action_dim)
+        self.critic_target_1.load_state_dict(self.critic_1.state_dict())
+        self.critic_2 = DoubleQNet(state_dim, action_dim)
+        self.critic_target_2 = DoubleQNet(state_dim, action_dim)
+        self.critic_target_2.load_state_dict(self.critic_2.state_dict())
+        self.critic_optimizer = torch.optim.Adam(list(self.critic_1.parameters()) + list(self.critic_2.parameters()), lr=1e-3)
 
-        self.max_action = max_action
-        self.act_dim = action_dim
+        self.replay_buffer = OffPolicyBuffer(state_dim, action_dim)
 
-    def select_action(self, state, noise=0.1):
+    def act(self, state, noise=EXPLORE_NOISE):
         state = torch.FloatTensor(state.reshape(1, -1))
 
         action = self.actor(state).data.numpy().flatten()
+        
         if noise != 0: 
             action = (action + np.random.normal(0, noise, size=self.act_dim))
             
-        return action.clip(-self.max_action, self.max_action)
+        return action.clip(-self.action_scale, self.action_scale)
 
-    def train(self, replay_buffer, iterations):
+    def train(self, iterations=2):
+        if self.replay_buffer.size() < BATCH_SIZE:
+            return
         for it in range(iterations):
-            # state, action, next_state, reward, done = replay_buffer.sample(BATCH_SIZE)
-            # Sample replay replay_buffer 
-            x, y, u, r, d = replay_buffer.sample(BATCH_SIZE)
-            state = torch.FloatTensor(x)
-            action = torch.FloatTensor(u)
-            next_state = torch.FloatTensor(y)
-            done = torch.FloatTensor(1 - d)
-            reward = torch.FloatTensor(r)
-
-            # Select action according to policy and add clipped noise 
-            noise = torch.FloatTensor(u).data.normal_(0, POLICY_NOISE)
-            noise = noise.clamp(-NOISE_CLIP, NOISE_CLIP)
-            next_action = (self.actor_target(next_state) + noise).clamp(-self.max_action, self.max_action)
-
-            # Compute the target Q value
-            target_Q1, target_Q2 = self.critic_target(next_state, next_action)
-            target_Q = torch.min(target_Q1, target_Q2)
-            target_Q = reward + (done * GAMMA * target_Q).detach()
-
-            # Get current Q estimates
-            current_Q1, current_Q2 = self.critic(state, action)
-
-            # Compute critic loss
-            critic_loss = F.mse_loss(current_Q1, target_Q) + F.mse_loss(current_Q2, target_Q) 
-
-            # Optimize the critic
-            self.critic_optimizer.zero_grad()
-            critic_loss.backward()
-            self.critic_optimizer.step()
-
-            # Delayed policy updates
+            state, action, next_state, reward, done = self.replay_buffer.sample(BATCH_SIZE)
+            self.update_critic(state, action, next_state, reward, done)
+        
             if it % POLICY_FREQUENCY == 0:
-                actor_loss = -self.critic.Q1(state, self.actor(state)).mean()
+                self.update_policy(state)
+                
+                soft_update(self.critic_1, self.critic_target_1, tau)
+                soft_update(self.critic_2, self.critic_target_2, tau)
+                soft_update(self.actor, self.actor_target, tau)
+    
+    def update_critic(self, state, action, next_state, reward, done):
+        noise = torch.normal(torch.zeros(action.size()), POLICY_NOISE)
+        noise = noise.clamp(-NOISE_CLIP, NOISE_CLIP)
+        next_action = (self.actor_target(next_state) + noise).clamp(-self.action_scale, self.action_scale)
 
-                self.actor_optimizer.zero_grad()
-                actor_loss.backward()
-                self.actor_optimizer.step()
+        target_Q1 = self.critic_target_1(next_state, next_action)
+        target_Q2 = self.critic_target_2(next_state, next_action)
+        target_Q = torch.min(target_Q1, target_Q2)
+        target_Q = reward + (done * GAMMA * target_Q).detach()
 
-                # Update the frozen target models
-                for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
-                    target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
+        current_Q1 = self.critic_1(state, action)
+        current_Q2 = self.critic_2(state, action)
 
-                for param, target_param in zip(self.actor.parameters(), self.actor_target.parameters()):
-                    target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
+        critic_loss = F.mse_loss(current_Q1, target_Q) + F.mse_loss(current_Q2, target_Q) 
 
-    def save(self, filename, directory):
-        torch.save(self.actor.state_dict(), '%s/%s_actor.pth' % (directory, filename))
-        torch.save(self.critic.state_dict(), '%s/%s_critic.pth' % (directory, filename))
+        self.critic_optimizer.zero_grad()
+        critic_loss.backward()
+        self.critic_optimizer.step()
 
-    def load(self, filename="best_avg", directory="./saves"):
-        self.actor.load_state_dict(torch.load('%s/%s_actor.pth' % (directory, filename)))
-        self.critic.load_state_dict(torch.load('%s/%s_critic.pth' % (directory, filename)))
+    def update_policy(self, state):
+        actor_loss = -self.critic_1(state, self.actor(state)).mean()
 
+        self.actor_optimizer.zero_grad()
+        actor_loss.backward()
+        self.actor_optimizer.step()
 
-def observe(env,replay_buffer, observation_steps):
+def soft_update(net, net_target, tau):
+    for param_target, param in zip(net_target.parameters(), net.parameters()):
+        param_target.data.copy_(param_target.data * (1.0 - tau) + param.data * tau)
+
+def plot(frame_idx, rewards):
+    plt.figure(1, figsize=(5,5))
+    plt.title('frame %s. reward: %s' % (frame_idx, rewards[-1]))
+    plt.plot(rewards)
+    plt.pause(0.00001) 
+    
+    
+
+def observe(env, replay_buffer, observation_steps):
     time_steps = 0
-    obs = env.reset()
+    state = env.reset()
     done = False
 
     while time_steps < observation_steps:
         action = env.action_space.sample()
-        new_obs, reward, done, _ = env.step(action)
+        next_state, reward, done, _ = env.step(action)
 
-        replay_buffer.add((obs, new_obs, action, reward, done))
+        replay_buffer.add(state, action, next_state, reward, done)  
 
-        obs = new_obs
+        state = next_state
         time_steps += 1
 
         if done:
-            obs = env.reset()
+            state = env.reset()
             done = False
 
         print("\rPopulating Buffer {}/{}.".format(time_steps, observation_steps), end="")
         sys.stdout.flush()
 
-def evaluate_policy(policy, env, eval_episodes=100,render=False):
-    avg_reward = 0.
-    for i in range(eval_episodes):
-        obs = env.reset()
-        done = False
-        while not done:
-            if render:
-                env.render()
-            action = policy.select_action(np.array(obs), noise=0)
-            obs, reward, done, _ = env.step(action)
-            avg_reward += reward
-
-    avg_reward /= eval_episodes
-
-    print("\n---------------------------------------")
-    print("Evaluation over {:d} episodes: {:f}" .format(eval_episodes, avg_reward))
-    print("---------------------------------------")
-    return avg_reward
+    print("")
 
 
-def test():
-    env = gym.make("Pendulum-v1")
-    state_dim = env.observation_space.shape[0]
-    action_dim = env.action_space.shape[0] 
-    max_action = env.action_space.high[0]
-    print(state_dim, action_dim, max_action)
-
-    agent = TD3(state_dim, action_dim, max_action)
-    replay_buffer = ReplayBuffer()
-
-    rewards = []
-    steps = 0
-    observe(env, replay_buffer, 10000)
-    for episode in range(50):
-        score, done, obs, ep_steps = 0, False, env.reset(), 0
-        while not done:
-            action = agent.select_action(np.array(obs), noise=0.1)
-
-            new_obs, reward, done, _ = env.step(action) 
-            done_bool = 0 if ep_steps + 1 == 500 else float(done)
+def OffPolicyTrainingLoop(agent, env, training_steps=10000, view=True):
+    lengths, rewards = [], []
+    state, done = env.reset(), False
+    ep_score, ep_steps = 0, 0
+    for t in range(1, training_steps):
+        action = agent.act(state)
+        next_state, reward, done, info = env.step(action)
         
-            replay_buffer.add((obs, new_obs, action, reward, done_bool))          
-            obs = new_obs
-            score += reward
-            ep_steps += 1
-            # env.render()
-            agent.train(replay_buffer, 2) # number is of itterations
-            steps += 1
+        done = 0 if ep_steps + 1 == 200 else float(done)
+        agent.replay_buffer.add(state, action, next_state, reward, done)  
+        ep_score += reward
+        ep_steps += 1
+        state = next_state
+        
+        agent.train()
+        
+        if done:
+            lengths.append(ep_steps)
+            rewards.append(ep_score)
+            state, done = env.reset(), False
+            print("Step: {}, Episode :{}, Score : {:.1f}".format(t, len(lengths), ep_score))
+            ep_score, ep_steps = 0, 0
+        
+        
+        if t % 1000 == 0 and view:
+            plot(t, rewards)
+        
+    return lengths, rewards
 
-        rewards.append(score)
-        print(f"Ep: {episode} -> score: {score} -> steps {steps}")
 
-if __name__ == "__main__":
-    test()
- 
+def test_td3():
+    env_name = 'Pendulum-v1'
+    env = gym.make(env_name)
+    agent = TD3(env.observation_space.shape[0], env.action_space.shape[0], env.action_space.high[0])
     
+    observe(env, agent.replay_buffer, 10000)
+    OffPolicyTrainingLoop(agent, env, 10000)
+        
+        
+if __name__ == '__main__':
+    test_td3()

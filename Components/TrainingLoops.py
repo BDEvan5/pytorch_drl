@@ -63,7 +63,6 @@ def OffPolicyTrainingLoop(agent, env, training_steps=10000, view=True):
         
     return lengths, rewards
 
-reward_scale = 100
 
 
 def observe(env, replay_buffer, observation_steps):
