@@ -93,7 +93,7 @@ class PPO:
         self.critic = Critic(self.state_dim)
         self.optimizer = optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=learning_rate)
         
-        self.buffer = OnPolicyBuffer(state_dim, 1000)
+        self.replay_buffer = OnPolicyBuffer(state_dim, 1000)
         
     def act(self, obs):
         prob = self.actor.pi(torch.from_numpy(obs).float())
@@ -114,10 +114,10 @@ class PPO:
         return advantage
             
     def train(self):
-        if self.buffer.ptr < T_horizon:
+        if self.replay_buffer.ptr < T_horizon:
             return
 
-        s, a, s_prime, r, done_mask = self.buffer.make_data_batch()
+        s, a, s_prime, r, done_mask = self.replay_buffer.make_data_batch()
 
         for i in range(K_epoch):
             td_target = r + gamma * self.critic.v(s_prime) * done_mask
@@ -167,8 +167,8 @@ def main():
                 action = model.act(state)
                 next_state, reward, done, info = env.step(action)
 
-                model.buffer.add(state, action, next_state, reward/100, done)
-                # model.buffer.add(state, action, next_state, reward, done)
+                model.replay_buffer.add(state, action, next_state, reward/100, done)
+                # model.replay_buffer.add(state, action, next_state, reward, done)
                 state = next_state
 
                 score += reward

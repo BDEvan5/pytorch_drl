@@ -29,7 +29,7 @@ The following algorithms are under construction:
 It is planned to split the algorithms up into standard components for easy comparision.
 The split will take place in the categories of Components and Components algorithms since there is a significant deviation between the two.
 The following components will be used:
-- Replay buffer
+- Replay replay_buffer
 - Training loop
 - Network
 - Learning algorithm

@@ -121,7 +121,8 @@ class TD3(object):
 
     def train(self, replay_buffer, iterations):
         for it in range(iterations):
-            # Sample replay buffer 
+            # state, action, next_state, reward, done = replay_buffer.sample(BATCH_SIZE)
+            # Sample replay replay_buffer 
             x, y, u, r, d = replay_buffer.sample(BATCH_SIZE)
             state = torch.FloatTensor(x)
             action = torch.FloatTensor(u)

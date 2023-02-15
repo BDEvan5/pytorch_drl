@@ -14,7 +14,7 @@ class A2C_ent:
         self.critic = SingleVNet(state_dim)
         self.optimizer = optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=lr)
         self.entropy = 0
-        self.buffer = OnPolicyBuffer(state_dim, 10000)
+        self.replay_buffer = OnPolicyBuffer(state_dim, 10000)
         
     def act(self, state):
         state = torch.FloatTensor(state)
@@ -36,7 +36,7 @@ class A2C_ent:
         return returns
         
     def train(self, next_state=None):
-        states, actions, next_states, rewards, done_masks = self.buffer.make_data_batch()
+        states, actions, next_states, rewards, done_masks = self.replay_buffer.make_data_batch()
         
         probs = self.actor.pi(states, softmax_dim=1)
         probs = probs.gather(1, actions.long())
@@ -58,6 +58,6 @@ class A2C_ent:
         self.optimizer.step()
         
         self.entropy = 0
-        self.buffer.reset()
+        self.replay_buffer.reset()
     
     

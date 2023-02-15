@@ -20,7 +20,7 @@ class DQN:
     def __init__(self, obs_space, action_space):
         self.obs_space = obs_space
         self.action_space = action_space
-        self.memory = OffPolicyBuffer(obs_space, 1)
+        self.replay_buffer = OffPolicyBuffer(obs_space, 1)
 
         self.model = QNetworkDQN(obs_space, action_space)
         self.target = QNetworkDQN(obs_space, action_space)
@@ -39,8 +39,8 @@ class DQN:
             return action
         
     def train(self):
-        if self.memory.size() < BATCH_SIZE: return
-        state, action, next_state, reward, done = self.memory.sample(BATCH_SIZE)
+        if self.replay_buffer.size() < BATCH_SIZE: return
+        state, action, next_state, reward, done = self.replay_buffer.sample(BATCH_SIZE)
         
         next_values = self.target.forward(next_state)
         max_vals = torch.max(next_values, dim=1)[0].reshape((BATCH_SIZE, 1))

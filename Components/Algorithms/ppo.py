@@ -28,7 +28,7 @@ class PPO:
         self.critic = SingleVNet(self.state_dim)
         self.optimizer = optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=learning_rate)
         
-        self.buffer = OnPolicyBuffer(state_dim, 10000)
+        self.replay_buffer = OnPolicyBuffer(state_dim, 10000)
         
     def act(self, obs):
         prob = self.actor.pi(torch.from_numpy(obs).float())
@@ -49,10 +49,10 @@ class PPO:
         return advantage
             
     def train(self, next_state=None):
-        if self.buffer.ptr < T_horizon:
+        if self.replay_buffer.ptr < T_horizon:
             return
 
-        states, actions, next_states, rewards, done_masks = self.buffer.make_data_batch()
+        states, actions, next_states, rewards, done_masks = self.replay_buffer.make_data_batch()
 
         for i in range(K_epoch):
             td_target = rewards + gamma * self.critic.v(next_states) * done_masks

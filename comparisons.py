@@ -48,15 +48,15 @@ def compare_Components():
     env = utils.NormalizedActions(env)
 
     agent = SAC(env.observation_space.shape[0], env.action_space.shape[0])
-    observe(env, agent.memory, 10000)
+    observe(env, agent.replay_buffer, 10000)
     sac_lengths, sac_rewards = OffPolicyTrainingLoop(agent, env)
     
     agent = DDPG(env.observation_space.shape[0], env.action_space.shape[0], env.action_space.high[0])
-    observe(env, agent.memory, 10000)
+    observe(env, agent.replay_buffer, 10000)
     ddpg_lengths, ddpg_rewards = OffPolicyTrainingLoop(agent, env)
     
     agent = TD3(env.observation_space.shape[0], env.action_space.shape[0], env.action_space.high[0])
-    observe(env, agent.memory, 10000)
+    observe(env, agent.replay_buffer, 10000)
     td3_lengths, td3_rewards = OffPolicyTrainingLoop(agent, env)
             
     plt.figure(1, figsize=(5,5))

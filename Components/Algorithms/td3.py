@@ -4,6 +4,7 @@ import torch.nn.functional as F
 
 from Components.Networks import DoublePolicyNet, DoubleQNet
 from Components.ReplayBuffers import OffPolicyBuffer
+from utils import soft_update
 
 # hyper parameters
 BATCH_SIZE = 100
@@ -34,7 +35,7 @@ class TD3(object):
         self.critic_target_2.load_state_dict(self.critic_2.state_dict())
         self.critic_optimizer = torch.optim.Adam(list(self.critic_1.parameters()) + list(self.critic_2.parameters()), lr=1e-3)
 
-        self.memory = OffPolicyBuffer(state_dim, action_dim)
+        self.replay_buffer = OffPolicyBuffer(state_dim, action_dim)
 
     def act(self, state, noise=EXPLORE_NOISE):
         state = torch.FloatTensor(state.reshape(1, -1))
@@ -47,10 +48,10 @@ class TD3(object):
         return action.clip(-self.action_scale, self.action_scale)
 
     def train(self, iterations=2):
-        if self.memory.size() < BATCH_SIZE:
+        if self.replay_buffer.size() < BATCH_SIZE:
             return
         for it in range(iterations):
-            state, action, next_state, reward, done = self.memory.sample(BATCH_SIZE)
+            state, action, next_state, reward, done = self.replay_buffer.sample(BATCH_SIZE)
             self.update_critic(state, action, next_state, reward, done)
         
             if it % POLICY_FREQUENCY == 0:
@@ -89,6 +90,3 @@ class TD3(object):
 
 
         
-def soft_update(net, net_target, tau):
-    for param_target, param in zip(net_target.parameters(), net.parameters()):
-        param_target.data.copy_(param_target.data * (1.0 - tau) + param.data * tau)

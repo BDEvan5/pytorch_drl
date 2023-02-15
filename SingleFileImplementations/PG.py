@@ -59,7 +59,7 @@ class PolicyGradient:
     def __init__(self, num_inputs, num_outputs) -> None:
         self.actor = SingleActor(num_inputs, num_outputs)
         self.optimizer = optim.Adam(list(self.actor.parameters()), lr=lr)
-        self.buffer = BufferPG()
+        self.replay_buffer = BufferPG()
         
     def act(self, state):
         state = torch.FloatTensor(state)
@@ -71,8 +71,8 @@ class PolicyGradient:
         return action.numpy(), log_prob
         
     def train(self):
-        returns = self.buffer.compute_rewards_to_go()
-        log_probs = torch.stack(self.buffer.log_probs)
+        returns = self.replay_buffer.compute_rewards_to_go()
+        log_probs = torch.stack(self.replay_buffer.log_probs)
         returns   = torch.cat(returns).detach()
         
         actor_loss  = -(log_probs * returns.detach()).mean()
@@ -81,7 +81,7 @@ class PolicyGradient:
         actor_loss.backward()
         self.optimizer.step()
         
-        self.buffer.reset()
+        self.replay_buffer.reset()
     
 def plot(frame_idx, rewards):
     plt.figure(1, figsize=(5,5))
@@ -111,7 +111,7 @@ def test_policy_gradient():
 
             next_state, reward, done, _ = env.step(action)
     
-            agent.buffer.add(log_prob, reward, 1 - done)
+            agent.replay_buffer.add(log_prob, reward, 1 - done)
             ep_reward += reward
         
             state = next_state

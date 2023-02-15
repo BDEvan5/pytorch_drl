@@ -17,13 +17,13 @@ tau          = 0.005 # for target network soft update
 
 class ReplayBuffer():
     def __init__(self):
-        self.buffer = collections.deque(maxlen=buffer_limit)
+        self.replay_buffer = collections.deque(maxlen=buffer_limit)
 
     def put(self, transition):
-        self.buffer.append(transition)
+        self.replay_buffer.append(transition)
     
     def sample(self, n):
-        mini_batch = random.sample(self.buffer, n)
+        mini_batch = random.sample(self.replay_buffer, n)
         s_lst, a_lst, r_lst, s_prime_lst, done_mask_lst = [], [], [], [], []
 
         for transition in mini_batch:
@@ -40,7 +40,7 @@ class ReplayBuffer():
                 torch.tensor(done_mask_lst, dtype=torch.float)
     
     def size(self):
-        return len(self.buffer)
+        return len(self.replay_buffer)
 
 class MuNet(nn.Module):
     def __init__(self):
@@ -92,7 +92,7 @@ class OrnsteinUhlenbeckNoise:
     
 class DDPG:
     def __init__(self, input_dim, output_dim):
-        self.memory = ReplayBuffer()
+        self.replay_buffer = ReplayBuffer()
 
         self.q, self.q_target = QNet(), QNet()
         self.q_target.load_state_dict(self.q.state_dict())
@@ -112,11 +112,11 @@ class DDPG:
         
       
     def train(self):
-        if self.memory.size() < 1000:
+        if self.replay_buffer.size() < 1000:
             return
         
         for i in range(1):
-            s,a,r,s_prime,done_mask  = self.memory.sample(batch_size)
+            s,a,r,s_prime,done_mask  = self.replay_buffer.sample(batch_size)
             
             target = r + gamma * self.q_target(s_prime, self.mu_target(s_prime)) * done_mask
             q_loss = F.smooth_l1_loss(self.q(s,a), target.detach())
@@ -153,7 +153,7 @@ def main():
             a = agent.act(s)
             s_prime, r, done, info = env.step([a])
             steps += 1
-            agent.memory.put((s,a,r/100.0,s_prime,done))
+            agent.replay_buffer.put((s,a,r/100.0,s_prime,done))
             score +=r
             ep_score += r
             s = s_prime

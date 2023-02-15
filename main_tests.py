@@ -77,7 +77,7 @@ def test_ddpg():
     env = gym.make(env_name)
     agent = DDPG(env.observation_space.shape[0], env.action_space.shape[0], 2)
     
-    OffPolicyTrainingLoop(agent, env)
+    OffPolicyTrainingLoop(agent, env, 10000)
     
     
 def test_td3():
@@ -85,8 +85,8 @@ def test_td3():
     env = gym.make(env_name)
     agent = TD3(env.observation_space.shape[0], env.action_space.shape[0], env.action_space.high[0])
     
-    observe(env, agent.memory, 10000)
-    OffPolicyTrainingLoop(agent, env)
+    observe(env, agent.replay_buffer, 10000)
+    OffPolicyTrainingLoop(agent, env, 10000)
         
 def test_sac():
     env_name = 'Pendulum-v1'
@@ -95,8 +95,8 @@ def test_sac():
     
     agent = SAC(env.observation_space.shape[0], env.action_space.shape[0])
     
-    observe(env, agent.memory, 10000)
-    OffPolicyTrainingLoop(agent, env)
+    observe(env, agent.replay_buffer, 10000)
+    OffPolicyTrainingLoop(agent, env, 10000)
     
     
     
@@ -107,11 +107,11 @@ if __name__ == '__main__':
     # test_pg()
     # test_a2c()
     # test_a2c_ent()
-    test_ppo()
+    # test_ppo()
     
     # test_ddpg()
     # test_td3()
-    # test_sac()
+    test_sac()
     
     
         

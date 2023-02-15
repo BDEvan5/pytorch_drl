@@ -20,7 +20,7 @@ class DDPG:
     def __init__(self, state_dim, action_dim, action_scale):
         self.action_scale = action_scale
         
-        self.memory = OffPolicyBuffer(state_dim, action_dim)
+        self.replay_buffer = OffPolicyBuffer(state_dim, action_dim)
 
         self.critic = DoubleQNet(state_dim, action_dim)
         self.critic_target = DoubleQNet(state_dim, action_dim)
@@ -41,24 +41,22 @@ class DDPG:
         return action
       
     def train(self):
-        if self.memory.size() < BATCH_SIZE:
-            return
+        if self.replay_buffer.size() < BATCH_SIZE: return
         
-        for i in range(1):
-            s, a, s_prime, r, done_mask  = self.memory.sample(BATCH_SIZE)
-            
-            target = r + gamma * self.critic_target(s_prime, self.actor_target(s_prime)) * done_mask
-            q_loss = F.smooth_l1_loss(self.critic(s,a), target.detach())
-            self.q_optimizer.zero_grad()
-            q_loss.backward()
-            self.q_optimizer.step()
-            
-            mu_loss = -self.critic(s,self.actor(s)).mean() 
-            self.mu_optimizer.zero_grad()
-            mu_loss.backward()
-            self.mu_optimizer.step()
+        states, actions, next_states, rewards, done_masks  = self.replay_buffer.sample(BATCH_SIZE)
         
-            soft_update(self.critic, self.critic_target, tau)
-            soft_update(self.actor, self.actor_target, tau)
+        target = rewards + gamma * self.critic_target(next_states, self.actor_target(next_states)) * done_masks
+        q_loss = F.smooth_l1_loss(self.critic(states,actions), target.detach())
+        self.q_optimizer.zero_grad()
+        q_loss.backward()
+        self.q_optimizer.step()
+        
+        mu_loss = -self.critic(states,self.actor(states)).mean() 
+        self.mu_optimizer.zero_grad()
+        mu_loss.backward()
+        self.mu_optimizer.step()
+    
+        soft_update(self.critic, self.critic_target, tau)
+        soft_update(self.actor, self.actor_target, tau)
      
         

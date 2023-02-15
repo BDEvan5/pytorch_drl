@@ -142,7 +142,7 @@ class NormalizedActions(gym.ActionWrapper):
     
 class SAC(object):
     def __init__(self, state_dim, action_dim):
-        self.memory = OffPolicyBuffer(state_dim, action_dim)
+        self.replay_buffer = OffPolicyBuffer(state_dim, action_dim)
 
         self.soft_q_net1 = CriticNetwork(state_dim, action_dim)
         self.soft_q_net2 = CriticNetwork(state_dim, action_dim)
@@ -176,7 +176,7 @@ class SAC(object):
            
     def train(self, iterations):
         for _ in range(0,iterations):
-            state, action, next_state, reward, done = self.memory.sample(BATCH_SIZE)
+            state, action, next_state, reward, done = self.replay_buffer.sample(BATCH_SIZE)
 
             new_actions, policy_mean, policy_log_std, log_pi, *_ = self.policy_net(state)
 
@@ -258,13 +258,13 @@ def train(total_steps=10000, max_ep_len=500):
     
     state, reward, done, ep_reward, ep_len, ep_num = env.reset(), 0, False, 0, 0, 1
     
-    observe(env, agent.memory, 10000)
+    observe(env, agent.replay_buffer, 10000)
     for t in range(1,total_steps):
         action = agent.act(state)
         next_state, reward, done, _ = env.step(action)
         done = False if ep_len == max_ep_len else done
 
-        agent.memory.add(state, action, next_state, reward, done)
+        agent.replay_buffer.add(state, action, next_state, reward, done)
         ep_reward += reward
         ep_len += 1
         state = next_state

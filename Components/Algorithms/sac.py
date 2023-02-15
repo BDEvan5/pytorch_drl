@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from utils import soft_update
 
 torch.autograd.set_detect_anomaly(True)
 
@@ -11,8 +12,6 @@ GAMMA = 0.99
 BATCH_SIZE = 100
 LR = 1e-3
 
-torch.manual_seed(SEED)
-np.random.seed(SEED)
    
 from Components.ReplayBuffers import OffPolicyBuffer
 from Components.Networks import PolicyNetworkSAC, DoubleQNet
@@ -20,7 +19,7 @@ from Components.Networks import PolicyNetworkSAC, DoubleQNet
 
 class SAC(object):
     def __init__(self, state_dim, action_dim):
-        self.memory = OffPolicyBuffer(state_dim, action_dim)
+        self.replay_buffer = OffPolicyBuffer(state_dim, action_dim)
 
         self.soft_q_net1 = DoubleQNet(state_dim, action_dim)
         self.soft_q_net2 = DoubleQNet(state_dim, action_dim)
@@ -46,7 +45,7 @@ class SAC(object):
                
     def train(self, iterations=2):
         for _ in range(0, iterations):
-            state, action, next_state, reward, done = self.memory.sample(BATCH_SIZE)
+            state, action, next_state, reward, done = self.replay_buffer.sample(BATCH_SIZE)
             alpha = self.log_alpha.exp()
             
             self.update_policy(state, alpha)
@@ -95,9 +94,6 @@ class SAC(object):
         alpha_loss.backward()
         self.alpha_optimizer.step()
                 
-        
-def soft_update(net, net_target, tau):
-    for param_target, param in zip(net_target.parameters(), net.parameters()):
-        param_target.data.copy_(param_target.data * (1.0 - tau) + param.data * tau)
+    
      
      

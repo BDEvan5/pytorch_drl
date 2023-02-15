@@ -11,7 +11,7 @@ class PolicyGradient:
     def __init__(self, state_dim, action_dim, n_steps) -> None:
         self.actor = SingleActor(state_dim, action_dim)
         self.optimizer = optim.Adam(list(self.actor.parameters()), lr=lr)
-        self.buffer = OnPolicyBuffer(state_dim, 10000)
+        self.replay_buffer = OnPolicyBuffer(state_dim, 10000)
         
     def compute_rewards_to_go(self, rewards, done_masks):
         R = 0
@@ -31,7 +31,7 @@ class PolicyGradient:
         return action.numpy()
         
     def train(self, next_state=None):
-        states, actions, next_states, rewards, done_masks = self.buffer.make_data_batch()
+        states, actions, next_states, rewards, done_masks = self.replay_buffer.make_data_batch()
         
         returns = self.compute_rewards_to_go(rewards, done_masks)
         returns   = torch.cat(returns).detach()
@@ -46,5 +46,5 @@ class PolicyGradient:
         actor_loss.backward()
         self.optimizer.step()
         
-        self.buffer.reset()
+        self.replay_buffer.reset()
     
