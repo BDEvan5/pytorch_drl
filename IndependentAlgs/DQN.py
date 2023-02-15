@@ -21,7 +21,7 @@ EXPLORATION_MIN = 0.01
 EXPLORATION_DECAY = 0.995
 
 
-class SmartBufferDQN(object):
+class OffPolicyBufferDQN(object):
     def __init__(self, state_dim=4, max_size=MEMORY_SIZE):     
         self.max_size = max_size
         self.state_dim = state_dim
@@ -89,7 +89,7 @@ class DQN:
     def __init__(self, obs_space, action_space, name="Agent"):
         self.obs_space = obs_space
         self.action_space = action_space
-        self.memory = SmartBufferDQN(obs_space)
+        self.memory = OffPolicyBufferDQN(obs_space)
 
         self.name = name
         self.model = None 
