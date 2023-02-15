@@ -5,7 +5,6 @@ from Components.Algorithms.td3 import TD3
 from Components.Algorithms.pg import PolicyGradient
 from Components.Algorithms.a2c import A2C
 from Components.Algorithms.dqn import DQN
-from Components.Algorithms.a2c_ent import A2C_ent
 from Components.Algorithms.ppo import PPO
 from Components.TrainingLoops import OffPolicyTrainingLoop, observe, OnPolicyTrainingLoop_eps
 
@@ -39,14 +38,14 @@ def test_pg():
     OnPolicyTrainingLoop_eps(agent, env, 1, view=True)
      
 
-def test_a2c_ent():
+def test_a2c():
     env_name = "CartPole-v1"
     env = gym.make(env_name)
     num_steps = 100
 
     state_dim  = env.observation_space.shape[0]
     n_acts = env.action_space.n
-    agent = A2C_ent(state_dim, n_acts, num_steps)
+    agent = A2C(state_dim, n_acts, num_steps)
     
     OnPolicyTrainingLoop_eps(agent, env, 1, view=True)
        
@@ -95,13 +94,12 @@ def test_sac():
 if __name__ == '__main__':
     # test_dqn()
     # test_pg()
-    # test_a2c()
-    # test_a2c_ent()
+    test_a2c()
     # test_ppo()
     
     # test_ddpg()
     # test_td3()
-    test_sac()
+    # test_sac()
     
     
         
