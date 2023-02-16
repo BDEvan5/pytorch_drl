@@ -1,5 +1,7 @@
 # Implementation Notes
 
+A place to store notes related to the implementations in this repo.
+
 ## Algorithms
 
 ### Soft Actor Critic (SAC):
