@@ -33,7 +33,7 @@ The following components will be used:
 - Training loop
 - Network
 - Learning algorithm
-
+<!-- 
 ### Benchmark Experiments
 
 The second improvment is to generate example experiments using the standard formats.
@@ -41,7 +41,7 @@ This is done to:
 1. Benchmark these implementations
 2. Enable easy tuning and experimentstion
 3. Promote good scientific experiementation in RL algorithms, e.g. random seeding
-4. Provide a template for experiments in other domains.
+4. Provide a template for experiments in other domains. -->
 
 
 ## Ideas
