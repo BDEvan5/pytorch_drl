@@ -9,7 +9,7 @@ gamma=0.99
 
 
 class A2C:
-    def __init__(self, state_dim, n_acts, num_steps) -> None:
+    def __init__(self, state_dim, n_acts) -> None:
         self.actor = SingleActor(state_dim, n_acts)
         self.critic = SingleVNet(state_dim)
         self.optimizer = optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=lr)

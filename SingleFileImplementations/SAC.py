@@ -132,6 +132,7 @@ class SAC(object):
         self.target_soft_q_net2 = DoubleQNet(state_dim, action_dim)
         self.target_soft_q_net1.load_state_dict(self.soft_q_net1.state_dict())
         self.target_soft_q_net2.load_state_dict(self.soft_q_net2.state_dict())
+        torch.loss
         
         self.policy_net = PolicyNetworkSAC(state_dim, action_dim)
         
