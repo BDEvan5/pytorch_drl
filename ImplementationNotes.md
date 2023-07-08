@@ -30,5 +30,9 @@ An example is provided.
     optimiser.step()
 ```
 
+# Useful Resources
 
+This is a running list of resources that I considered useful in my DRL journey. 
+- [Making sense of the Bias-Variance trade-off](https://blog.mlreview.com/making-sense-of-the-bias-variance-trade-off-in-deep-reinforcement-learning-79cf1e83d565) 
+- 
 

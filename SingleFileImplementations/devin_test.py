@@ -1,21 +1,22 @@
 import math
 import random
 import sys
-
+​
 import gym
 import numpy as np
 import time 
-
+​
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.distributions import Normal
 from matplotlib import pyplot as plt
-
+​
 torch.autograd.set_detect_anomaly(True)
-
+​
 # Hyper params:
+
 
 MEMORY_SIZE = 100000
 SEED = 0
@@ -23,14 +24,14 @@ TAU = 1e-2
 GAMMA = 0.99
 BATCH_SIZE = 100
 LR = 1e-3
-
-
+​
+​
 NN_LAYER_1 = 400
 NN_LAYER_2 = 300
 LOG_STD_MIN = -20
 LOG_STD_MAX = 2
 EPSILON = 1e-6
-
+​
 class PolicyNetworkSAC(nn.Module):
     def __init__(self, num_inputs, num_actions):
         super(PolicyNetworkSAC, self).__init__()
@@ -56,7 +57,7 @@ class PolicyNetworkSAC(nn.Module):
             
         return action, log_prob
    
-
+​
 class DoubleQNet(nn.Module):
     def __init__(self, state_dim, act_dim):
         super(DoubleQNet, self).__init__()
@@ -64,38 +65,38 @@ class DoubleQNet(nn.Module):
         self.fc1 = nn.Linear(state_dim + act_dim, NN_LAYER_1)
         self.fc2 = nn.Linear(NN_LAYER_1, NN_LAYER_2)
         self.fc_out = nn.Linear(NN_LAYER_2, 1)
-
+​
     def forward(self, state, action):
         x = torch.cat([state, action], 1)
         x2 = F.relu(self.fc1(x))
         x3 = F.relu(self.fc2(x2))
         q = self.fc_out(x3)
         return q
-
-
+​
+​
 class OffPolicyBuffer(object):
     def __init__(self, state_dim, action_dim):     
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.ptr = 0
-
+​
         self.states = np.empty((MEMORY_SIZE, state_dim))
         self.actions = np.empty((MEMORY_SIZE, action_dim))
         self.next_states = np.empty((MEMORY_SIZE, state_dim))
         self.rewards = np.empty((MEMORY_SIZE, 1))
         self.dones = np.empty((MEMORY_SIZE, 1))
-
+​
     def add(self, state, action, next_state, reward, done):
         self.states[self.ptr] = state
         self.actions[self.ptr] = action
         self.next_states[self.ptr] = next_state
         self.rewards[self.ptr] = reward
         self.dones[self.ptr] = done
-
+​
         self.ptr += 1
         
         if self.ptr == MEMORY_SIZE: self.ptr = 0
-
+​
     def sample(self, batch_size):
         ind = np.random.randint(0, self.ptr-1, size=batch_size)
         states = np.empty((batch_size, self.state_dim))
@@ -103,7 +104,7 @@ class OffPolicyBuffer(object):
         next_states = np.empty((batch_size, self.state_dim))
         rewards = np.empty((batch_size, 1))
         dones = np.empty((batch_size, 1))
-
+​
         for i, j in enumerate(ind): 
             states[i] = self.states[j]
             actions[i] = self.actions[j]
@@ -116,22 +117,23 @@ class OffPolicyBuffer(object):
         next_states = torch.FloatTensor(next_states)
         rewards = torch.FloatTensor(rewards)
         dones = torch.FloatTensor(1- dones)
-
+​
         return states, actions, next_states, rewards, dones
-
+​
     def size(self):
         return self.ptr
    
 class SAC(object):
     def __init__(self, state_dim, action_dim):
         self.replay_buffer = OffPolicyBuffer(state_dim, action_dim)
-
+​
         self.soft_q_net1 = DoubleQNet(state_dim, action_dim)
         self.soft_q_net2 = DoubleQNet(state_dim, action_dim)
         self.target_soft_q_net1 = DoubleQNet(state_dim, action_dim)
         self.target_soft_q_net2 = DoubleQNet(state_dim, action_dim)
         self.target_soft_q_net1.load_state_dict(self.soft_q_net1.state_dict())
         self.target_soft_q_net2.load_state_dict(self.soft_q_net2.state_dict())
+        #torch.loss()
         
         self.policy_net = PolicyNetworkSAC(state_dim, action_dim)
         
@@ -149,8 +151,6 @@ class SAC(object):
         return action.detach()[0].numpy()
                
     def train(self, iterations=2):
-        if self.replay_buffer.size() < BATCH_SIZE: return 
-        
         for _ in range(0, iterations):
             state, action, next_state, reward, done = self.replay_buffer.sample(BATCH_SIZE)
             alpha = self.log_alpha.exp()
@@ -164,7 +164,7 @@ class SAC(object):
         
     def update_policy(self, state, alpha):
         new_actions, log_pi = self.policy_net(state)
-
+​
         q1 = self.soft_q_net1(state, new_actions)
         q2 = self.soft_q_net2(state, new_actions)
         q_new_actions = torch.min(q1, q2)
@@ -179,13 +179,13 @@ class SAC(object):
     def update_Q(self, state, action, next_state, reward, done, alpha):
             current_q1 = self.soft_q_net1(state, action)
             current_q2 = self.soft_q_net2(state, action)
-
+​
             new_next_actions, new_log_pi= self.policy_net(next_state)
-
+​
             target_q1 = self.target_soft_q_net1(next_state, new_next_actions)
             target_q2 = self.target_soft_q_net2(next_state, new_next_actions)
             target_q_values = torch.min(target_q1, target_q2) - alpha * new_log_pi
-
+​
             q_target = reward + done * GAMMA * target_q_values
             q_loss = self.soft_q_criterion(current_q1, q_target.detach()) + self.soft_q_criterion(current_q2, q_target.detach())
             
@@ -209,44 +209,44 @@ class NormalizedActions(gym.ActionWrapper):
     def action(self, action):
         low  = self.action_space.low
         high = self.action_space.high
-
+​
         action = low + (action + 1.0) * 0.5 * (high - low)
         action = np.clip(action, low, high)
         
         return action
-
+​
 def plot(frame_idx, rewards):
     plt.figure(1, figsize=(5,5))
     plt.title('frame %s. reward: %s' % (frame_idx, rewards[-1]))
     plt.plot(rewards)
     plt.pause(0.00001) 
-
+​
 def observe(env, replay_buffer, observation_steps):
     time_steps = 0
-    state = env.reset()
+    (state,_) = env.reset()
     done = False
-
+​
     while time_steps < observation_steps:
         action = env.action_space.sample()
-        next_state, reward, done, _ = env.step(action)
-
+        next_state, reward, terminated,truncated, _ = env.step(action)
+        done = terminated or truncated
         replay_buffer.add(state, action, next_state, reward, done)  
-
+​
         state = next_state
         time_steps += 1
-
+​
         if done:
-            state = env.reset()
+            (state,_) = env.reset()
             done = False
-
+​
         print("\rPopulating Buffer {}/{}.".format(time_steps, observation_steps), end="")
         sys.stdout.flush()
-
+​
     print("")
-
+​
 def OffPolicyTrainingLoop(agent, env, training_steps=10000, view=True):
     lengths, rewards = [], []
-    state, done = env.reset(), False
+    (state,_), done = env.reset(), False
     ep_score, ep_steps = 0, 0
     for t in range(1, training_steps):
         action = agent.act(state)
@@ -263,7 +263,7 @@ def OffPolicyTrainingLoop(agent, env, training_steps=10000, view=True):
         if done:
             lengths.append(ep_steps)
             rewards.append(ep_score)
-            state, done = env.reset(), False
+            (state,_), done = env.reset(), False
             print("Step: {}, Episode :{}, Score : {:.1f}".format(t, len(lengths), ep_score))
             ep_score, ep_steps = 0, 0
         
@@ -272,7 +272,7 @@ def OffPolicyTrainingLoop(agent, env, training_steps=10000, view=True):
             plot(t, rewards)
         
     return lengths, rewards
-
+​
 def test_sac():
     env_name = 'Pendulum-v1'
     env = gym.make(env_name)
@@ -285,5 +285,3 @@ def test_sac():
     
 if __name__ == '__main__':
     test_sac()
-
-
