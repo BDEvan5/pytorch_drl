@@ -2,8 +2,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from Components.Networks import DoublePolicyNet, DoubleQNet
-from Components.ReplayBuffers import OffPolicyBuffer
+from modular.Networks import DoublePolicyNet, DoubleQNet
+from modular.ReplayBuffers import OffPolicyBuffer
 from utils import soft_update
 
 # hyper parameters

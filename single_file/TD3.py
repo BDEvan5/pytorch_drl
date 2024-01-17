@@ -179,20 +179,27 @@ def soft_update(net, net_target, tau):
 
 def plot(frame_idx, rewards):
     plt.figure(1, figsize=(5,5))
+    plt.clf()
     plt.title('frame %s. reward: %s' % (frame_idx, rewards[-1]))
     plt.plot(rewards)
     plt.pause(0.00001) 
     
     
+def plot_final(frame_idx, rewards):
+    plt.figure(1, figsize=(5,5))
+    plt.clf()
+    plt.title('frame %s. reward: %s' % (frame_idx, rewards[-1]))
+    plt.plot(rewards)
+    plt.savefig("images/td3.png")
 
 def observe(env, replay_buffer, observation_steps):
     time_steps = 0
-    state = env.reset()
+    state, _ = env.reset()
     done = False
 
     while time_steps < observation_steps:
         action = env.action_space.sample()
-        next_state, reward, done, _ = env.step(action)
+        next_state, reward, done, _, _ = env.step(action)
 
         replay_buffer.add(state, action, next_state, reward, done)  
 
@@ -211,11 +218,12 @@ def observe(env, replay_buffer, observation_steps):
 
 def OffPolicyTrainingLoop(agent, env, training_steps=10000, view=True):
     lengths, rewards = [], []
-    state, done = env.reset(), False
+    (state, _), done = env.reset(), False
     ep_score, ep_steps = 0, 0
     for t in range(1, training_steps):
         action = agent.act(state)
-        next_state, reward, done, info = env.step(action)
+        next_state, reward, done, tuncated, _ = env.step(action)
+        done = done or tuncated
         
         done = 0 if ep_steps + 1 == 200 else float(done)
         agent.replay_buffer.add(state, action, next_state, reward, done)  
@@ -228,13 +236,15 @@ def OffPolicyTrainingLoop(agent, env, training_steps=10000, view=True):
         if done:
             lengths.append(ep_steps)
             rewards.append(ep_score)
-            state, done = env.reset(), False
+            (state, _), done = env.reset(), False
             print("Step: {}, Episode :{}, Score : {:.1f}".format(t, len(lengths), ep_score))
             ep_score, ep_steps = 0, 0
         
         
-        if t % 1000 == 0 and view:
+        if t % 1000 == 0 and view and len(rewards) > 0:
             plot(t, rewards)
+
+    plot_final(t, rewards)
         
     return lengths, rewards
 

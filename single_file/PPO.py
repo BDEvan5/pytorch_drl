@@ -150,9 +150,17 @@ class PPO:
 
 def plot(frame_idx, rewards):
     plt.figure(1, figsize=(5,5))
+    plt.clf()
     plt.title('frame %s. reward: %s' % (frame_idx, rewards[-1]))
     plt.plot(rewards)
     plt.pause(0.00001) 
+
+def plot_final(frame_idx, rewards):
+    plt.figure(1, figsize=(5,5))
+    plt.clf()
+    plt.title("PPO")
+    plt.plot(rewards)
+    plt.savefig("images/ppo.png")
     
 def OnPolicyTrainingLoop_eps(agent, env, batch_eps=1, view=False):
     frame_idx    = 0
@@ -162,10 +170,10 @@ def OnPolicyTrainingLoop_eps(agent, env, batch_eps=1, view=False):
 
     while frame_idx < 50000:
         for ep in range(batch_eps):
-            state, done = env.reset(), False
+            (state, _), done = env.reset(), False
             while not done:
                 action = agent.act(state)
-                next_state, reward, done, _ = env.step(action)
+                next_state, reward, done, _, _ = env.step(action)
                 agent.replay_buffer.add(state, action, next_state, reward/100, done)
         
                 ep_reward += reward
@@ -181,6 +189,8 @@ def OnPolicyTrainingLoop_eps(agent, env, batch_eps=1, view=False):
             ep_reward = 0
     
         agent.train()
+
+    plot_final(frame_idx, training_rewards)
 
     return cum_lengths, training_rewards
 

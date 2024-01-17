@@ -19,9 +19,18 @@ class NormalizedActions(gym.ActionWrapper):
 
 def plot(frame_idx, rewards):
     plt.figure(1, figsize=(5,5))
-    plt.title('frame %s. reward: %s' % (frame_idx, rewards[-1]))
+    plt.clf()
+    plt.title(f"Frame: {frame_idx}, Reward: {rewards[-1]}")
     plt.plot(rewards)
     plt.pause(0.00001) 
+
+def plot_final(frame_idx, rewards, algorithm):
+    plt.figure(1, figsize=(5,5))
+    plt.clf()
+    plt.title(algorithm)
+    plt.plot(rewards)
+    plt.grid(True)
+    plt.savefig(f"images/{algorithm}.png")
         
 colors = ["#e60049", "#0bb4ff", "#50e991", "#e6d800", "#9b19f5", "#ffa300", "#dc0ab4", "#b3d4ff", "#00bfa0"]
         

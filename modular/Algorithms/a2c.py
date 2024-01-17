@@ -1,11 +1,11 @@
 import torch
 import torch.optim as optim
 
-from Components.Networks import SingleActor, SingleVNet
-from Components.ReplayBuffers import OnPolicyBuffer
+from modular.Networks import SingleActor, SingleVNet
+from modular.ReplayBuffers import OnPolicyBuffer
 
-lr          = 3e-4
-gamma=0.99
+lr = 3e-4
+gamma = 0.99
 
 
 class A2C:

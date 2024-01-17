@@ -2,8 +2,8 @@ import torch
 import torch.optim as optim
 import random
 
-from Components.Networks import QNetworkDQN
-from Components.ReplayBuffers import OffPolicyBuffer
+from modular.Networks import QNetworkDQN
+from modular.ReplayBuffers import OffPolicyBuffer
 
 GAMMA = 0.94
 LEARNING_RATE = 0.001

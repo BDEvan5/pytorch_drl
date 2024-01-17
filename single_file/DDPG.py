@@ -172,11 +172,11 @@ def plot(frame_idx, rewards):
 
 def OffPolicyTrainingLoop(agent, env, training_steps=10000, view=True):
     lengths, rewards = [], []
-    state, done = env.reset(), False
+    (state, _), done = env.reset(), False
     ep_score, ep_steps = 0, 0
     for t in range(1, training_steps):
         action = agent.act(state)
-        next_state, reward, done, info = env.step(action)
+        next_state, reward, done, info, _ = env.step(action)
         
         done = 0 if ep_steps + 1 == 200 else float(done)
         agent.replay_buffer.add(state, action, next_state, reward, done)  
@@ -189,7 +189,7 @@ def OffPolicyTrainingLoop(agent, env, training_steps=10000, view=True):
         if done:
             lengths.append(ep_steps)
             rewards.append(ep_score)
-            state, done = env.reset(), False
+            (state, _), done = env.reset(), False
             print("Step: {}, Episode :{}, Score : {:.1f}".format(t, len(lengths), ep_score))
             ep_score, ep_steps = 0, 0
         

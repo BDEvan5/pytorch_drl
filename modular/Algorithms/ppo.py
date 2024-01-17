@@ -2,8 +2,8 @@ import torch
 import torch.optim as optim
 import torch.nn.functional as F
 
-from Components.Networks import SingleActor, SingleVNet
-from Components.ReplayBuffers import OnPolicyBuffer
+from modular.Networks import SingleActor, SingleVNet
+from modular.ReplayBuffers import OnPolicyBuffer
 
 
 

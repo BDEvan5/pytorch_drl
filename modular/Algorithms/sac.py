@@ -13,8 +13,8 @@ BATCH_SIZE = 100
 LR = 1e-3
 
    
-from Components.ReplayBuffers import OffPolicyBuffer
-from Components.Networks import PolicyNetworkSAC, DoubleQNet
+from modular.ReplayBuffers import OffPolicyBuffer
+from modular.Networks import PolicyNetworkSAC, DoubleQNet
 
 
 class SAC(object):

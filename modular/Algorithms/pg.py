@@ -1,7 +1,7 @@
 import torch
 import torch.optim as optim
-from Components.Networks import SingleActor
-from Components.ReplayBuffers import OnPolicyBuffer
+from modular.Networks import SingleActor
+from modular.ReplayBuffers import OnPolicyBuffer
 
 
 lr          = 3e-4

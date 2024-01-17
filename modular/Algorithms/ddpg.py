@@ -1,6 +1,6 @@
-from Components.Networks import DoublePolicyNet, DoubleQNet
-from Components.ReplayBuffers import OffPolicyBuffer
-from Components.Noises import OrnsteinUhlenbeckNoise
+from modular.Networks import DoublePolicyNet, DoubleQNet
+from modular.ReplayBuffers import OffPolicyBuffer
+from modular.Noises import OrnsteinUhlenbeckNoise
 from utils import soft_update
 
 import torch.optim as optim
